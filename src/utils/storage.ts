@@ -1,22 +1,36 @@
 import type { BlueskySession } from '../types'
 
 const STORAGE_KEYS = {
-  SESSION: 'bluesky_session',
+  SESSION: 'selfstarter_session',
 } as const
 
 export async function saveSession(session: BlueskySession): Promise<void> {
-  await chrome.storage.local.set({ [STORAGE_KEYS.SESSION]: session })
+  try {
+    localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session))
+  } catch {
+    // localStorage might be unavailable (private browsing, etc.)
+  }
 }
 
 export async function getSession(): Promise<BlueskySession | null> {
-  const result = await chrome.storage.local.get(STORAGE_KEYS.SESSION)
-  const session = result[STORAGE_KEYS.SESSION] as BlueskySession | undefined
-  if (session && session.did && session.handle && session.accessJwt && session.refreshJwt) {
-    return session
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.SESSION)
+    if (!stored) return null
+
+    const session = JSON.parse(stored) as BlueskySession
+    if (session && session.did && session.handle && session.accessJwt && session.refreshJwt) {
+      return session
+    }
+  } catch {
+    // Invalid JSON or localStorage unavailable
   }
   return null
 }
 
 export async function clearSession(): Promise<void> {
-  await chrome.storage.local.remove(STORAGE_KEYS.SESSION)
+  try {
+    localStorage.removeItem(STORAGE_KEYS.SESSION)
+  } catch {
+    // localStorage might be unavailable
+  }
 }
