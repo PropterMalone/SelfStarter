@@ -24,6 +24,7 @@ export interface InteractionUser {
     replies: number
     reposts: number
     mentions: number
+    quotes: number
   }
 }
 

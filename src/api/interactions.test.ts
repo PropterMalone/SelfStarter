@@ -107,6 +107,7 @@ describe('fetchInteractions', () => {
       replies: [],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'test-rev',
     })
 
@@ -129,6 +130,7 @@ describe('fetchInteractions', () => {
       replies: [],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'test-rev',
     })
 
@@ -150,6 +152,7 @@ describe('fetchInteractions', () => {
       replies: [],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'test-rev',
     })
 
@@ -187,6 +190,7 @@ describe('fetchInteractions', () => {
       replies: [],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'test-rev',
     })
 
@@ -196,6 +200,7 @@ describe('fetchInteractions', () => {
       replies: [],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'test-rev',
     })
 
@@ -223,6 +228,7 @@ describe('fetchInteractions', () => {
       replies: [],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'test-rev',
     })
 
@@ -256,6 +262,7 @@ describe('fetchInteractions', () => {
       replies: [],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'rev-1',
     })
 
@@ -286,6 +293,7 @@ describe('fetchInteractions', () => {
       replies: [],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'rev-1',
     })
 
@@ -303,6 +311,7 @@ describe('fetchInteractions', () => {
       replies: [],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'rev-2',
     })
 
@@ -330,6 +339,7 @@ describe('fetchInteractions', () => {
       ],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'test-rev',
     })
 

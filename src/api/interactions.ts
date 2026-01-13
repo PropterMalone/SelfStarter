@@ -63,6 +63,7 @@ interface InteractionCounts {
   replies: number
   reposts: number
   mentions: number
+  quotes: number
 }
 
 export async function fetchInteractions(
@@ -78,35 +79,49 @@ export async function fetchInteractions(
   onProgress?.('Checking for updates...', 0)
 
   try {
+    console.log('[Cache] Checking latest commit for', did)
+    console.log('[Cache] Current cache state:', repoCache ? { did: repoCache.did, rev: repoCache.rev } : 'null')
+
     const { rev: latestRev, pdsUrl } = await getLatestCommit(did)
+    console.log('[Cache] Got latest rev:', latestRev, 'from PDS:', pdsUrl)
 
     if (repoCache && repoCache.did === did && repoCache.rev === latestRev) {
       // Repo hasn't changed, use cached data
+      console.log('[Cache] HIT - revisions match, using cached data')
       onProgress?.('Using cached data (no changes detected)...', 0)
       rawParsed = repoCache.parsed
     } else {
       // Need to download - either no cache or repo has changed
       if (repoCache && repoCache.did === did) {
+        console.log('[Cache] MISS - revision changed from', repoCache.rev, 'to', latestRev)
         onProgress?.('Repository updated, downloading changes...', 0)
+      } else if (repoCache) {
+        console.log('[Cache] MISS - different user (cached:', repoCache.did, 'requested:', did, ')')
+      } else {
+        console.log('[Cache] MISS - no cache exists')
       }
       rawParsed = await downloadAndParseRepo(did, (stage) => {
         onProgress?.(stage, 0)
       }, pdsUrl)
 
-      // Update cache with raw (unfiltered) data
-      repoCache = { did, rev: rawParsed.rev, parsed: rawParsed }
+      console.log('[Cache] Downloaded, storing with rev:', rawParsed.rev, '(latestRev was:', latestRev, ')')
+      // Update cache with raw (unfiltered) data - use the rev from getLatestCommit, not from the download
+      // This ensures we compare apples to apples on the next check
+      repoCache = { did, rev: latestRev, parsed: rawParsed }
     }
-  } catch {
+  } catch (err) {
     // Fallback: if getLatestCommit fails, just download
+    console.error('[Cache] ERROR in getLatestCommit, falling back to direct download:', err)
     rawParsed = await downloadAndParseRepo(did, (stage) => {
       onProgress?.(stage, 0)
     })
+    console.log('[Cache] Fallback download complete, storing with rev:', rawParsed.rev)
     repoCache = { did, rev: rawParsed.rev, parsed: rawParsed }
   }
 
   // Apply time period filter
   const parsed = filterByPeriod(rawParsed, period)
-  onProgress?.(`Filtered to ${parsed.likes.length} likes, ${parsed.replies.length} replies, ${parsed.reposts.length} reposts in selected period`, 0)
+  onProgress?.(`Filtered to ${parsed.likes.length} likes, ${parsed.replies.length} replies, ${parsed.reposts.length} reposts, ${parsed.quotes.length} quotes in selected period`, 0)
 
   // Step 1: Count interactions by DID without any API calls
   // We can extract DIDs directly from the post URIs
@@ -119,7 +134,7 @@ export async function fetchInteractions(
     if (existing) {
       existing[type]++
     } else {
-      interactionCounts.set(targetDid, { likes: 0, replies: 0, reposts: 0, mentions: 0, [type]: 1 })
+      interactionCounts.set(targetDid, { likes: 0, replies: 0, reposts: 0, mentions: 0, quotes: 0, [type]: 1 })
     }
   }
 
@@ -138,6 +153,11 @@ export async function fetchInteractions(
     addInteractionByDid(extractDidFromUri(repost.uri), 'reposts')
   }
 
+  // Count quotes by quoted post author DID
+  for (const quote of parsed.quotes) {
+    addInteractionByDid(extractDidFromUri(quote.uri), 'quotes')
+  }
+
   // For mentions, we need to resolve handles to DIDs
   // Group mentions by handle first to minimize lookups
   const mentionsByHandle = new Map<string, number>()
@@ -154,7 +174,7 @@ export async function fetchInteractions(
     .map(([targetDid, counts]) => ({
       did: targetDid,
       counts,
-      total: counts.likes + counts.replies + counts.reposts + counts.mentions,
+      total: counts.likes + counts.replies + counts.reposts + counts.mentions + counts.quotes,
     }))
     .sort((a, b) => b.total - a.total)
     .slice(0, TOP_N)
@@ -206,7 +226,7 @@ export async function fetchInteractions(
             if (existing) {
               existing.mentions += mentionCount
             } else {
-              interactionCounts.set(profile.did, { likes: 0, replies: 0, reposts: 0, mentions: mentionCount })
+              interactionCounts.set(profile.did, { likes: 0, replies: 0, reposts: 0, mentions: mentionCount, quotes: 0 })
             }
           }
         }
@@ -228,7 +248,7 @@ export async function fetchInteractions(
         handle: profile.handle,
         displayName: profile.displayName,
         avatar: profile.avatar,
-        interactionCount: counts.likes + counts.replies + counts.reposts + counts.mentions,
+        interactionCount: counts.likes + counts.replies + counts.reposts + counts.mentions + counts.quotes,
         interactions: counts,
       })
     }
