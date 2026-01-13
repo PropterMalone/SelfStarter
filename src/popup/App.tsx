@@ -138,11 +138,11 @@ export function App() {
         </div>
       </header>
 
-      {/* Main Content - Two Column */}
+      {/* Main Content - Two Column on desktop, stacked on mobile */}
       <main className="flex-1">
-        <div className="max-w-6xl mx-auto w-full flex gap-6 p-4">
-          {/* Left Sidebar */}
-          <aside className="w-80 flex-shrink-0 space-y-4">
+        <div className="max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-4 lg:gap-6 p-4">
+          {/* Sidebar - full width on mobile, fixed width on desktop */}
+          <aside className="w-full lg:w-80 lg:flex-shrink-0 space-y-4">
             {/* Auth Section */}
             <div className="bg-white rounded-lg shadow-sm p-4">
               <AuthForm
@@ -191,8 +191,8 @@ export function App() {
             )}
           </aside>
 
-          {/* Right Main Area */}
-          <div className="flex-1 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden min-h-[600px]">
+          {/* Main Area - full height on desktop, auto height on mobile */}
+          <div className="flex-1 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden min-h-[400px] lg:min-h-[600px]">
             {!session ? (
               <div className="flex-1 flex items-center justify-center p-4 text-center text-gray-500">
                 <div>
