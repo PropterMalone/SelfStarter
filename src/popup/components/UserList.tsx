@@ -31,40 +31,40 @@ export function UserList({ users, selectedDids, onToggle, onSelectAll, onDeselec
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center px-2 py-1 border-b bg-gray-50">
-        <span className="text-xs text-gray-600">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 px-3 py-2 border-b bg-gray-50">
+        <span className="text-sm text-gray-600">
           {users.length} users found
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-600">Select top</span>
+            <span className="text-sm text-gray-600">Select top</span>
             <input
               type="number"
               min="1"
               max={users.length}
               value={topNValue}
               onChange={(e) => setTopNValue(e.target.value)}
-              className="w-14 px-1 py-0.5 text-xs border rounded"
+              className="w-16 px-2 py-1 text-sm border rounded"
             />
             <button
               onClick={handleSelectTopN}
-              className="text-xs text-blue-500 hover:text-blue-700"
+              className="px-2 py-1 text-sm text-blue-500 hover:text-blue-700 active:text-blue-800"
             >
               Go
             </button>
           </div>
-          <span className="text-gray-300">|</span>
+          <span className="hidden sm:inline text-gray-300">|</span>
           <button
             onClick={onSelectAll}
-            className="text-xs text-blue-500 hover:text-blue-700"
+            className="px-2 py-1 text-sm text-blue-500 hover:text-blue-700 active:text-blue-800"
           >
-            Select all
+            All
           </button>
           <button
             onClick={onDeselectAll}
-            className="text-xs text-blue-500 hover:text-blue-700"
+            className="px-2 py-1 text-sm text-blue-500 hover:text-blue-700 active:text-blue-800"
           >
-            Deselect all
+            None
           </button>
         </div>
       </div>

@@ -98,7 +98,7 @@ describe('UserList', () => {
       />
     )
 
-    fireEvent.click(screen.getByText('Select all'))
+    fireEvent.click(screen.getByText('All'))
 
     expect(onSelectAll).toHaveBeenCalled()
   })
@@ -118,7 +118,7 @@ describe('UserList', () => {
       />
     )
 
-    fireEvent.click(screen.getByText('Deselect all'))
+    fireEvent.click(screen.getByText('None'))
 
     expect(onDeselectAll).toHaveBeenCalled()
   })
