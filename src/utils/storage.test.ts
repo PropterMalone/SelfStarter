@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { saveSession, getSession, clearSession } from './storage'
 import type { BlueskySession } from '../types'
 
@@ -10,8 +10,12 @@ const mockSession: BlueskySession = {
 }
 
 describe('storage', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
   describe('saveSession', () => {
-    it('saves session to chrome storage', async () => {
+    it('saves session to localStorage', async () => {
       await saveSession(mockSession)
       const retrieved = await getSession()
       expect(retrieved).toEqual(mockSession)
@@ -31,14 +35,19 @@ describe('storage', () => {
     })
 
     it('returns null for invalid session data', async () => {
-      // Directly set invalid data
-      await chrome.storage.local.set({ bluesky_session: { invalid: 'data' } })
+      localStorage.setItem('selfstarter_session', JSON.stringify({ invalid: 'data' }))
       const session = await getSession()
       expect(session).toBeNull()
     })
 
     it('returns null for empty session', async () => {
-      await chrome.storage.local.set({ bluesky_session: {} })
+      localStorage.setItem('selfstarter_session', JSON.stringify({}))
+      const session = await getSession()
+      expect(session).toBeNull()
+    })
+
+    it('returns null for invalid JSON', async () => {
+      localStorage.setItem('selfstarter_session', 'not-valid-json')
       const session = await getSession()
       expect(session).toBeNull()
     })
