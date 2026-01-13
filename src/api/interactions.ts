@@ -28,20 +28,8 @@ interface ProfileView {
   description?: string
 }
 
-interface GetProfileResponse extends ProfileView {}
-
-interface PostView {
-  uri: string
-  cid: string
-  author: ProfileView
-  record: {
-    text?: string
-    createdAt: string
-  }
-}
-
-interface GetPostsResponse {
-  posts: PostView[]
+interface GetProfilesResponse {
+  profiles: ProfileView[]
 }
 
 export async function resolveHandle(handle: string): Promise<string> {
@@ -52,7 +40,7 @@ export async function resolveHandle(handle: string): Promise<string> {
 }
 
 export async function getProfile(actor: string): Promise<BlueskyProfile> {
-  const response = await publicGet<GetProfileResponse>('app.bsky.actor.getProfile', {
+  const response = await publicGet<ProfileView>('app.bsky.actor.getProfile', {
     actor,
   })
   return {
@@ -62,6 +50,12 @@ export async function getProfile(actor: string): Promise<BlueskyProfile> {
     avatar: response.avatar,
     description: response.description,
   }
+}
+
+// Extract DID from an AT URI (at://did:plc:xxx/collection/rkey)
+function extractDidFromUri(uri: string): string | null {
+  const match = uri.match(/^at:\/\/(did:[^/]+)\//)
+  return match ? match[1] : null
 }
 
 interface InteractionCounts {
@@ -78,25 +72,6 @@ export async function fetchInteractions(
 ): Promise<InteractionUser[]> {
   const did = await resolveHandle(handle)
   onProgress?.('Resolving handle...', 0)
-
-  const interactions = new Map<string, { profile: ProfileView; counts: InteractionCounts }>()
-
-  function addInteraction(
-    profile: ProfileView,
-    type: 'likes' | 'replies' | 'reposts' | 'mentions'
-  ) {
-    if (profile.did === did) return
-
-    const existing = interactions.get(profile.did)
-    if (existing) {
-      existing.counts[type]++
-    } else {
-      interactions.set(profile.did, {
-        profile,
-        counts: { likes: 0, replies: 0, reposts: 0, mentions: 0, [type]: 1 },
-      })
-    }
-  }
 
   // Check if we have a cached version and if the repo has changed
   let rawParsed: ParsedInteractions
@@ -133,103 +108,131 @@ export async function fetchInteractions(
   const parsed = filterByPeriod(rawParsed, period)
   onProgress?.(`Filtered to ${parsed.likes.length} likes, ${parsed.replies.length} replies, ${parsed.reposts.length} reposts in selected period`, 0)
 
-  // Collect all unique post URIs we need to resolve
-  const postUris = new Set<string>()
+  // Step 1: Count interactions by DID without any API calls
+  // We can extract DIDs directly from the post URIs
+  const interactionCounts = new Map<string, InteractionCounts>()
+
+  function addInteractionByDid(targetDid: string | null, type: keyof InteractionCounts) {
+    if (!targetDid || targetDid === did) return // Skip self-interactions
+
+    const existing = interactionCounts.get(targetDid)
+    if (existing) {
+      existing[type]++
+    } else {
+      interactionCounts.set(targetDid, { likes: 0, replies: 0, reposts: 0, mentions: 0, [type]: 1 })
+    }
+  }
+
+  // Count likes by author DID (extracted from URI)
   for (const like of parsed.likes) {
-    postUris.add(like.uri)
+    addInteractionByDid(extractDidFromUri(like.uri), 'likes')
   }
+
+  // Count replies by parent author DID
   for (const reply of parsed.replies) {
-    postUris.add(reply.parentUri)
+    addInteractionByDid(extractDidFromUri(reply.parentUri), 'replies')
   }
+
+  // Count reposts by author DID
   for (const repost of parsed.reposts) {
-    postUris.add(repost.uri)
+    addInteractionByDid(extractDidFromUri(repost.uri), 'reposts')
   }
 
-  // Batch resolve posts to get author profiles
-  const uriList = Array.from(postUris)
-  const authorMap = new Map<string, ProfileView>()
+  // For mentions, we need to resolve handles to DIDs
+  // Group mentions by handle first to minimize lookups
+  const mentionsByHandle = new Map<string, number>()
+  for (const mention of parsed.mentions) {
+    mentionsByHandle.set(mention.handle, (mentionsByHandle.get(mention.handle) || 0) + 1)
+  }
 
-  onProgress?.('Resolving post authors...', 0)
-  for (let i = 0; i < uriList.length; i += 25) {
-    const batch = uriList.slice(i, i + 25)
+  onProgress?.('Counting interactions...', 0)
+
+  // Step 2: Sort DIDs by total interaction count and take top N
+  const TOP_N = 250 // Fetch a bit more than 200 to account for failed lookups
+
+  const sortedDids = Array.from(interactionCounts.entries())
+    .map(([targetDid, counts]) => ({
+      did: targetDid,
+      counts,
+      total: counts.likes + counts.replies + counts.reposts + counts.mentions,
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, TOP_N)
+
+  onProgress?.(`Found ${interactionCounts.size} unique accounts, fetching top ${sortedDids.length} profiles...`, 0)
+
+  // Step 3: Batch fetch profiles for top DIDs using getProfiles (25 at a time)
+  const profiles = new Map<string, ProfileView>()
+  const didsToFetch = sortedDids.map((d) => d.did)
+
+  for (let i = 0; i < didsToFetch.length; i += 25) {
+    const batch = didsToFetch.slice(i, i + 25)
     try {
-      const postsResponse = await publicGet<GetPostsResponse>('app.bsky.feed.getPosts', {
-        uris: batch,
+      const response = await publicGet<GetProfilesResponse>('app.bsky.actor.getProfiles', {
+        actors: batch,
       })
-      for (const post of postsResponse.posts) {
-        authorMap.set(post.uri, post.author)
+      for (const profile of response.profiles) {
+        profiles.set(profile.did, profile)
       }
     } catch {
-      // Some posts deleted
+      // Some profiles may not exist
     }
-    onProgress?.('Resolving post authors...', Math.min(i + 25, uriList.length))
+    onProgress?.(`Fetching profiles... ${Math.min(i + 25, didsToFetch.length)}/${didsToFetch.length}`, Math.min(i + 25, didsToFetch.length))
+
     // Small delay to avoid rate limiting
-    if (i + 25 < uriList.length) {
+    if (i + 25 < didsToFetch.length) {
       await new Promise((r) => setTimeout(r, 50))
     }
   }
 
-  // Process likes
-  for (const like of parsed.likes) {
-    const author = authorMap.get(like.uri)
-    if (author) {
-      addInteraction(author, 'likes')
-    }
-  }
+  // Step 4: Resolve mention handles and add to counts
+  // Only resolve handles that might be in our top N
+  const handlesToResolve = Array.from(mentionsByHandle.keys()).slice(0, 100) // Limit mention lookups
 
-  // Process replies
-  for (const reply of parsed.replies) {
-    const author = authorMap.get(reply.parentUri)
-    if (author) {
-      addInteraction(author, 'replies')
-    }
-  }
+  if (handlesToResolve.length > 0) {
+    onProgress?.('Resolving mentions...', 0)
 
-  // Process reposts
-  for (const repost of parsed.reposts) {
-    const author = authorMap.get(repost.uri)
-    if (author) {
-      addInteraction(author, 'reposts')
-    }
-  }
-
-  // Resolve mentions (need to look up handles)
-  const uniqueHandles = [...new Set(parsed.mentions.map((m) => m.handle))]
-  onProgress?.('Resolving mentions...', 0)
-
-  for (let i = 0; i < uniqueHandles.length; i++) {
-    const mentionHandle = uniqueHandles[i]
-    try {
-      const profile = await getProfile(mentionHandle)
-      const mentionCount = parsed.mentions.filter((m) => m.handle === mentionHandle).length
-      const existing = interactions.get(profile.did)
-      if (existing) {
-        existing.counts.mentions += mentionCount
-      } else {
-        interactions.set(profile.did, {
-          profile: {
-            did: profile.did,
-            handle: profile.handle,
-            displayName: profile.displayName,
-            avatar: profile.avatar,
-          },
-          counts: { likes: 0, replies: 0, reposts: 0, mentions: mentionCount },
+    for (let i = 0; i < handlesToResolve.length; i += 25) {
+      const batch = handlesToResolve.slice(i, i + 25)
+      try {
+        const response = await publicGet<GetProfilesResponse>('app.bsky.actor.getProfiles', {
+          actors: batch,
         })
+        for (const profile of response.profiles) {
+          const mentionCount = mentionsByHandle.get(profile.handle) || 0
+          if (mentionCount > 0) {
+            profiles.set(profile.did, profile)
+            const existing = interactionCounts.get(profile.did)
+            if (existing) {
+              existing.mentions += mentionCount
+            } else {
+              interactionCounts.set(profile.did, { likes: 0, replies: 0, reposts: 0, mentions: mentionCount })
+            }
+          }
+        }
+      } catch {
+        // Some handles may not exist
       }
-    } catch {
-      // Invalid mention handle
+      onProgress?.(`Resolving mentions... ${Math.min(i + 25, handlesToResolve.length)}/${handlesToResolve.length}`, 0)
     }
-    onProgress?.('Resolving mentions...', i + 1)
   }
 
-  const users: InteractionUser[] = Array.from(interactions.values()).map(({ profile, counts }) => ({
-    did: profile.did,
-    handle: profile.handle,
-    displayName: profile.displayName,
-    avatar: profile.avatar,
-    interactionCount: counts.likes + counts.replies + counts.reposts + counts.mentions,
-    interactions: counts,
-  }))
+  // Step 5: Build final user list from profiles we successfully fetched
+  const users: InteractionUser[] = []
+
+  for (const [targetDid, counts] of interactionCounts) {
+    const profile = profiles.get(targetDid)
+    if (profile) {
+      users.push({
+        did: profile.did,
+        handle: profile.handle,
+        displayName: profile.displayName,
+        avatar: profile.avatar,
+        interactionCount: counts.likes + counts.replies + counts.reposts + counts.mentions,
+        interactions: counts,
+      })
+    }
+  }
 
   return users.sort((a, b) => b.interactionCount - a.interactionCount).slice(0, 200)
 }

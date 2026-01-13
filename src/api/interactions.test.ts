@@ -137,7 +137,7 @@ describe('fetchInteractions', () => {
     expect(onProgress).toHaveBeenCalledWith('Resolving handle...', 0)
   })
 
-  it('processes likes and extracts authors', async () => {
+  it('extracts DIDs from URIs and fetches profiles', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({ did: 'did:plc:user' }),
@@ -153,19 +153,16 @@ describe('fetchInteractions', () => {
       rev: 'test-rev',
     })
 
-    // getPosts response
+    // getProfiles response (batch endpoint)
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () =>
         Promise.resolve({
-          posts: [
+          profiles: [
             {
-              uri: 'at://did:plc:other/app.bsky.feed.post/1',
-              author: {
-                did: 'did:plc:other',
-                handle: 'other.bsky.social',
-                displayName: 'Other User',
-              },
+              did: 'did:plc:other',
+              handle: 'other.bsky.social',
+              displayName: 'Other User',
             },
           ],
         }),
@@ -229,18 +226,15 @@ describe('fetchInteractions', () => {
       rev: 'test-rev',
     })
 
-    // Mock getPosts in batches of 25
+    // Mock getProfiles in batches of 25 (we fetch top 250 DIDs)
     for (let i = 0; i < 10; i++) {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () =>
           Promise.resolve({
-            posts: Array.from({ length: 25 }, (_, j) => ({
-              uri: `at://did:plc:other${i * 25 + j}/app.bsky.feed.post/1`,
-              author: {
-                did: `did:plc:other${i * 25 + j}`,
-                handle: `other${i * 25 + j}.bsky.social`,
-              },
+            profiles: Array.from({ length: 25 }, (_, j) => ({
+              did: `did:plc:other${i * 25 + j}`,
+              handle: `other${i * 25 + j}.bsky.social`,
             })),
           }),
       })
@@ -314,5 +308,50 @@ describe('fetchInteractions', () => {
 
     await fetchInteractions('user.bsky.social', '7d')
     expect(mockDownloadAndParseRepo).toHaveBeenCalledTimes(2)
+  })
+
+  it('counts multiple interactions to same user', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ did: 'did:plc:user' }),
+    })
+
+    mockGetLatestCommit.mockResolvedValueOnce({ rev: 'test-rev', pdsUrl: 'https://pds.example.com' })
+
+    // Multiple likes and a reply to the same user
+    mockDownloadAndParseRepo.mockResolvedValueOnce({
+      likes: [
+        { uri: 'at://did:plc:other/app.bsky.feed.post/1', createdAt: new Date().toISOString() },
+        { uri: 'at://did:plc:other/app.bsky.feed.post/2', createdAt: new Date().toISOString() },
+        { uri: 'at://did:plc:other/app.bsky.feed.post/3', createdAt: new Date().toISOString() },
+      ],
+      replies: [
+        { parentUri: 'at://did:plc:other/app.bsky.feed.post/4', createdAt: new Date().toISOString() },
+      ],
+      reposts: [],
+      mentions: [],
+      rev: 'test-rev',
+    })
+
+    // getProfiles response
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          profiles: [
+            {
+              did: 'did:plc:other',
+              handle: 'other.bsky.social',
+              displayName: 'Other User',
+            },
+          ],
+        }),
+    })
+
+    const users = await fetchInteractions('user.bsky.social', '30d')
+    expect(users.length).toBe(1)
+    expect(users[0].interactions.likes).toBe(3)
+    expect(users[0].interactions.replies).toBe(1)
+    expect(users[0].interactionCount).toBe(4)
   })
 })
