@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import type { TimePeriod } from '../types'
-import { HandleInput, UserList, SelectionBar, AuthForm, PublishModal } from './components'
+import { HandleInput, UserList, SelectionBar, AuthForm, PublishModal, WeightsPanel } from './components'
 import { useBlueskyAuth, useInteractions, useStarterPack } from './hooks'
+import { rankUsers, DEFAULT_WEIGHTS, type ScoringWeights } from '../utils/scoring'
 
 type AppState = 'input' | 'results' | 'success'
 
@@ -12,10 +13,17 @@ export function App() {
   const [preCheckCount] = useState(50)
   const [analyzedHandle, setAnalyzedHandle] = useState('')
   const [analyzedPeriod, setAnalyzedPeriod] = useState<TimePeriod>('30d')
+  const [weights, setWeights] = useState<ScoringWeights>(DEFAULT_WEIGHTS)
 
   const { session, error: authError, login, logout } = useBlueskyAuth()
-  const { users, isLoading, error: interactionError, progress, analyze } = useInteractions()
+  const { users: rawUsers, isLoading, error: interactionError, progress, analyze } = useInteractions()
   const { isPublishing, publishedUrl, error: publishError, publish, reset: resetPublish } = useStarterPack()
+
+  // Re-rank users when weights change
+  const users = useMemo(() => {
+    if (rawUsers.length === 0) return []
+    return rankUsers(rawUsers, weights)
+  }, [rawUsers, weights])
 
   // Pre-check top N users when results come in
   useEffect(() => {
@@ -124,46 +132,77 @@ export function App() {
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-4">
+        <div className="max-w-6xl mx-auto px-4 py-4">
           <h1 className="text-xl font-bold text-gray-900">SelfStarter</h1>
           <p className="text-sm text-gray-500">Create Bluesky starter packs from your interactions</p>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col">
-        <div className="max-w-2xl mx-auto w-full px-4 py-6 flex-1 flex flex-col">
-          {/* Auth Section */}
-          <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-            <AuthForm
-              onLogin={login}
-              onLogout={logout}
-              isAuthenticated={!!session}
-              currentHandle={session?.handle}
-              error={authError || undefined}
-            />
-          </div>
+      {/* Main Content - Two Column */}
+      <main className="flex-1">
+        <div className="max-w-6xl mx-auto w-full flex gap-6 p-4">
+          {/* Left Sidebar */}
+          <aside className="w-80 flex-shrink-0 space-y-4">
+            {/* Auth Section */}
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <AuthForm
+                onLogin={login}
+                onLogout={logout}
+                isAuthenticated={!!session}
+                currentHandle={session?.handle}
+                error={authError || undefined}
+              />
+            </div>
 
-          {/* Input or Results */}
-          <div className="bg-white rounded-lg shadow-sm flex-1 flex flex-col overflow-hidden">
-            {!session ? (
-              <div className="p-4 text-center text-gray-500">
-                <p>Please log in to analyze your interactions.</p>
-                <p className="text-sm mt-2">You can only create starter packs from your own account.</p>
-              </div>
-            ) : appState === 'input' || users.length === 0 ? (
-              <div className="p-4">
+            {/* Handle Input & Time Period */}
+            {session && (
+              <div className="bg-white rounded-lg shadow-sm p-4">
                 <HandleInput onAnalyze={handleAnalyze} isLoading={isLoading} handle={session.handle} />
                 {progress && (
-                  <div className="mt-4 text-sm text-gray-500 text-center">
-                    {progress}
-                  </div>
+                  <div className="mt-3 text-sm text-gray-500">{progress}</div>
                 )}
                 {error && !authError && (
-                  <div className="mt-4 text-sm text-red-500 text-center">
-                    {error}
-                  </div>
+                  <div className="mt-3 text-sm text-red-500">{error}</div>
                 )}
+              </div>
+            )}
+
+            {/* Weights Panel */}
+            {session && (
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <WeightsPanel
+                  weights={weights}
+                  onChange={setWeights}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+
+            {/* Selection Count + Publish Button */}
+            {users.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm">
+                <SelectionBar
+                  selectedCount={selectedDids.size}
+                  onPublish={handlePublishClick}
+                  isAuthenticated={!!session}
+                  isPublishing={isPublishing}
+                />
+              </div>
+            )}
+          </aside>
+
+          {/* Right Main Area */}
+          <div className="flex-1 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden min-h-[600px]">
+            {!session ? (
+              <div className="flex-1 flex items-center justify-center p-4 text-center text-gray-500">
+                <div>
+                  <p>Please log in to analyze your interactions.</p>
+                  <p className="text-sm mt-2">You can only create starter packs from your own account.</p>
+                </div>
+              </div>
+            ) : appState === 'input' || users.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center p-4 text-gray-500">
+                <p>Select a time period and click Analyze to see your interactions.</p>
               </div>
             ) : (
               <UserList
@@ -176,18 +215,6 @@ export function App() {
               />
             )}
           </div>
-
-          {/* Selection Bar */}
-          {users.length > 0 && (
-            <div className="mt-4">
-              <SelectionBar
-                selectedCount={selectedDids.size}
-                onPublish={handlePublishClick}
-                isAuthenticated={!!session}
-                isPublishing={isPublishing}
-              />
-            </div>
-          )}
         </div>
       </main>
 

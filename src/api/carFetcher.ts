@@ -32,13 +32,16 @@ async function resolvePds(did: string): Promise<string> {
 
 export async function getLatestCommit(did: string): Promise<{ rev: string; pdsUrl: string }> {
   const pdsUrl = await resolvePds(did)
+  console.log('[CarFetcher] getLatestCommit calling:', `${pdsUrl}/xrpc/com.atproto.sync.getLatestCommit?did=${encodeURIComponent(did)}`)
   const response = await fetch(
     `${pdsUrl}/xrpc/com.atproto.sync.getLatestCommit?did=${encodeURIComponent(did)}`
   )
   if (!response.ok) {
+    console.error('[CarFetcher] getLatestCommit failed:', response.status, response.statusText)
     throw new Error(`Failed to get latest commit: ${response.status}`)
   }
   const data: LatestCommitResponse = await response.json()
+  console.log('[CarFetcher] getLatestCommit response:', data)
   return { rev: data.rev, pdsUrl }
 }
 
@@ -58,6 +61,13 @@ interface PostRecord {
     parent: { uri: string; cid: string }
     root: { uri: string; cid: string }
   }
+  embed?: {
+    $type: string
+    record?: {
+      uri: string
+      cid: string
+    }
+  }
   createdAt: string
 }
 
@@ -75,6 +85,7 @@ export interface ParsedInteractions {
   replies: { parentUri: string; createdAt: string }[]
   reposts: { uri: string; createdAt: string }[]
   mentions: { handle: string; createdAt: string }[]
+  quotes: { uri: string; createdAt: string }[]
   rev: string
 }
 
@@ -109,6 +120,7 @@ export function filterByPeriod(
     replies: parsed.replies.filter((r) => isWithinPeriod(r.createdAt, cutoff)),
     reposts: parsed.reposts.filter((r) => isWithinPeriod(r.createdAt, cutoff)),
     mentions: parsed.mentions.filter((m) => isWithinPeriod(m.createdAt, cutoff)),
+    quotes: parsed.quotes.filter((q) => isWithinPeriod(q.createdAt, cutoff)),
     rev: parsed.rev,
   }
 }
@@ -140,6 +152,7 @@ export async function downloadAndParseRepo(
 
   // Get the revision from the response header (atproto-repo-rev)
   const rev = response.headers.get('atproto-repo-rev') || ''
+  console.log('[CarFetcher] Downloaded repo, header rev:', rev)
 
   // Stream the response to show download progress
   const contentLength = response.headers.get('content-length')
@@ -185,6 +198,7 @@ export async function downloadAndParseRepo(
     replies: [],
     reposts: [],
     mentions: [],
+    quotes: [],
     rev,
   }
 
@@ -215,6 +229,13 @@ export async function downloadAndParseRepo(
             createdAt: post.createdAt,
           })
         }
+        // Check for quote posts (embed with a record reference)
+        if (post.embed?.record?.uri && post.embed.$type === 'app.bsky.embed.record') {
+          interactions.quotes.push({
+            uri: post.embed.record.uri,
+            createdAt: post.createdAt,
+          })
+        }
         if (post.text) {
           const mentions = post.text.match(mentionRegex)
           if (mentions) {
@@ -240,7 +261,7 @@ export async function downloadAndParseRepo(
     }
   }
 
-  onProgress?.(`Found ${interactions.likes.length} likes, ${interactions.replies.length} replies, ${interactions.reposts.length} reposts, ${interactions.mentions.length} mentions`)
+  onProgress?.(`Found ${interactions.likes.length} likes, ${interactions.replies.length} replies, ${interactions.reposts.length} reposts, ${interactions.quotes.length} quotes, ${interactions.mentions.length} mentions`)
 
   return interactions
 }

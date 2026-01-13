@@ -5,13 +5,15 @@ export interface ScoringWeights {
   replies: number
   reposts: number
   mentions: number
+  quotes: number
 }
 
 export const DEFAULT_WEIGHTS: ScoringWeights = {
   likes: 1,
   replies: 3,
-  reposts: 2,
-  mentions: 2,
+  reposts: 5,
+  mentions: 3,
+  quotes: 5,
 }
 
 export function calculateWeightedScore(user: InteractionUser, weights: ScoringWeights): number {
@@ -19,7 +21,8 @@ export function calculateWeightedScore(user: InteractionUser, weights: ScoringWe
     user.interactions.likes * weights.likes +
     user.interactions.replies * weights.replies +
     user.interactions.reposts * weights.reposts +
-    user.interactions.mentions * weights.mentions
+    user.interactions.mentions * weights.mentions +
+    user.interactions.quotes * weights.quotes
   )
 }
 

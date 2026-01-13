@@ -164,6 +164,33 @@ describe('downloadAndParseRepo', () => {
     expect(result.reposts[0].uri).toBe('at://did:plc:other/app.bsky.feed.post/1')
   })
 
+  it('parses quote posts', async () => {
+    const mockCarData = new Uint8Array([1, 2, 3])
+
+    mockFetch.mockResolvedValueOnce(mockPlcResponse())
+    mockFetch.mockResolvedValueOnce(mockCarResponse([mockCarData]))
+
+    const mockEntries = [{ collection: 'app.bsky.feed.post', bytes: new Uint8Array([1]) }]
+    mockRepoFromUint8Array.mockReturnValueOnce(
+      mockEntries as unknown as ReturnType<typeof atcuteRepo.fromUint8Array>
+    )
+
+    mockDecode.mockReturnValueOnce({
+      $type: 'app.bsky.feed.post',
+      text: 'Check out this post!',
+      embed: {
+        $type: 'app.bsky.embed.record',
+        record: { uri: 'at://did:plc:quoted/app.bsky.feed.post/1', cid: 'cid1' },
+      },
+      createdAt: new Date().toISOString(),
+    })
+
+    const result = await downloadAndParseRepo('did:plc:user')
+
+    expect(result.quotes).toHaveLength(1)
+    expect(result.quotes[0].uri).toBe('at://did:plc:quoted/app.bsky.feed.post/1')
+  })
+
   it('calls progress callback', async () => {
     const onProgress = vi.fn()
     const mockCarData = new Uint8Array([1, 2, 3])
@@ -218,6 +245,10 @@ describe('filterByPeriod', () => {
         { handle: 'old', createdAt: oldDate.toISOString() },
         { handle: 'recent', createdAt: recentDate.toISOString() },
       ],
+      quotes: [
+        { uri: 'old', createdAt: oldDate.toISOString() },
+        { uri: 'recent', createdAt: recentDate.toISOString() },
+      ],
       rev: 'test-rev',
     }
 
@@ -228,6 +259,8 @@ describe('filterByPeriod', () => {
     expect(filtered.replies).toHaveLength(0)
     expect(filtered.reposts).toHaveLength(1)
     expect(filtered.mentions).toHaveLength(1)
+    expect(filtered.quotes).toHaveLength(1)
+    expect(filtered.quotes[0].uri).toBe('recent')
     expect(filtered.rev).toBe('test-rev')
   })
 
@@ -243,6 +276,7 @@ describe('filterByPeriod', () => {
       replies: [],
       reposts: [],
       mentions: [],
+      quotes: [],
       rev: 'test-rev',
     }
 

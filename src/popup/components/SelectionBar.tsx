@@ -12,7 +12,7 @@ export function SelectionBar({ selectedCount, onPublish, isAuthenticated, isPubl
   const canPublish = selectedCount > 0 && selectedCount <= MAX_STARTER_PACK_SIZE && isAuthenticated && !isPublishing
 
   return (
-    <div className="flex items-center justify-between p-3 border-t bg-white">
+    <div className="flex items-center justify-between p-3 bg-white rounded-lg">
       <div className="flex items-center gap-2">
         <span
           className={`text-lg font-bold ${
