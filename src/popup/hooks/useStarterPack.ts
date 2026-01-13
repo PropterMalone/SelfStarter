@@ -10,7 +10,8 @@ interface UseStarterPackReturn {
     session: BlueskySession,
     name: string,
     description: string,
-    users: InteractionUser[]
+    users: InteractionUser[],
+    onSessionUpdate?: (session: BlueskySession) => void
   ) => Promise<string>
   reset: () => void
 }
@@ -25,7 +26,8 @@ export function useStarterPack(): UseStarterPackReturn {
       session: BlueskySession,
       name: string,
       description: string,
-      users: InteractionUser[]
+      users: InteractionUser[],
+      onSessionUpdate?: (session: BlueskySession) => void
     ): Promise<string> => {
       setIsPublishing(true)
       setError(null)
@@ -40,7 +42,8 @@ export function useStarterPack(): UseStarterPackReturn {
             handle: u.handle,
             displayName: u.displayName,
             avatar: u.avatar,
-          }))
+          })),
+          onSessionUpdate
         )
         setPublishedUrl(url)
         return url

@@ -15,7 +15,7 @@ export function App() {
   const [analyzedPeriod, setAnalyzedPeriod] = useState<TimePeriod>('30d')
   const [weights, setWeights] = useState<ScoringWeights>(DEFAULT_WEIGHTS)
 
-  const { session, error: authError, login, logout } = useBlueskyAuth()
+  const { session, error: authError, login, logout, updateSession } = useBlueskyAuth()
   const { users: rawUsers, isLoading, error: interactionError, progress, analyze } = useInteractions()
   const { isPublishing, publishedUrl, error: publishError, publish, reset: resetPublish } = useStarterPack()
 
@@ -77,7 +77,7 @@ export function App() {
 
     const selectedUsers = users.filter((u) => selectedDids.has(u.did))
     try {
-      await publish(session, name, description, selectedUsers)
+      await publish(session, name, description, selectedUsers, updateSession)
       setShowPublishModal(false)
       setAppState('success')
     } catch {

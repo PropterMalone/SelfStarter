@@ -9,6 +9,7 @@ interface UseBlueskyAuthReturn {
   error: string | null
   login: (handle: string, appPassword: string) => Promise<void>
   logout: () => Promise<void>
+  updateSession: (session: BlueskySession) => Promise<void>
 }
 
 export function useBlueskyAuth(): UseBlueskyAuthReturn {
@@ -50,5 +51,10 @@ export function useBlueskyAuth(): UseBlueskyAuthReturn {
     setError(null)
   }, [])
 
-  return { session, isLoading, error, login, logout }
+  const updateSession = useCallback(async (newSession: BlueskySession) => {
+    await saveSession(newSession)
+    setSession(newSession)
+  }, [])
+
+  return { session, isLoading, error, login, logout, updateSession }
 }

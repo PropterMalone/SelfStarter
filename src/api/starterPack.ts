@@ -1,5 +1,7 @@
 import type { BlueskySession, StarterPackUser } from '../types'
-import { authenticatedPost, authenticatedGet } from './client'
+import { AuthenticatedClient } from './authenticatedClient'
+
+type SessionUpdateCallback = (session: BlueskySession) => void
 
 interface StarterPackRecord {
   $type: 'app.bsky.graph.starterpack'
@@ -33,14 +35,15 @@ export async function createStarterPack(
   session: BlueskySession,
   name: string,
   description: string | undefined,
-  users: StarterPackUser[]
+  users: StarterPackUser[],
+  onSessionUpdate?: SessionUpdateCallback
 ): Promise<string> {
+  const client = new AuthenticatedClient(session, onSessionUpdate ?? (() => {}))
   const now = new Date().toISOString()
 
   // First create a list to hold the users
-  const listResponse = await authenticatedPost<CreateRecordResponse>(
+  const listResponse = await client.post<CreateRecordResponse>(
     'com.atproto.repo.createRecord',
-    session.accessJwt,
     {
       repo: session.did,
       collection: 'app.bsky.graph.list',
@@ -59,11 +62,10 @@ export async function createStarterPack(
 
   for (const user of usersToAdd) {
     try {
-      await authenticatedPost<CreateRecordResponse>(
+      await client.post<CreateRecordResponse>(
         'com.atproto.repo.createRecord',
-        session.accessJwt,
         {
-          repo: session.did,
+          repo: client.getSession().did,
           collection: 'app.bsky.graph.listitem',
           record: {
             $type: 'app.bsky.graph.listitem',
@@ -82,11 +84,10 @@ export async function createStarterPack(
   }
 
   // Create the starter pack referencing the list
-  const starterPackResponse = await authenticatedPost<CreateRecordResponse>(
+  const starterPackResponse = await client.post<CreateRecordResponse>(
     'com.atproto.repo.createRecord',
-    session.accessJwt,
     {
-      repo: session.did,
+      repo: client.getSession().did,
       collection: 'app.bsky.graph.starterpack',
       record: {
         $type: 'app.bsky.graph.starterpack',
@@ -100,8 +101,9 @@ export async function createStarterPack(
 
   // Convert AT URI to Bluesky URL
   // at://did:plc:xxx/app.bsky.graph.starterpack/yyy -> https://bsky.app/starter-pack/handle/yyy
+  const currentSession = client.getSession()
   const rkey = starterPackResponse.uri.split('/').pop()
-  return `https://bsky.app/starter-pack/${session.handle}/${rkey}`
+  return `https://bsky.app/starter-pack/${currentSession.handle}/${rkey}`
 }
 
 interface GetStarterPackResponse {
@@ -121,11 +123,12 @@ interface GetStarterPackResponse {
 
 export async function getStarterPack(
   session: BlueskySession,
-  uri: string
+  uri: string,
+  onSessionUpdate?: SessionUpdateCallback
 ): Promise<GetStarterPackResponse> {
-  return authenticatedGet<GetStarterPackResponse>(
+  const client = new AuthenticatedClient(session, onSessionUpdate ?? (() => {}))
+  return client.get<GetStarterPackResponse>(
     'app.bsky.graph.getStarterPack',
-    session.accessJwt,
     { starterPack: uri }
   )
 }
