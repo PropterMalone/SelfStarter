@@ -1,201 +1,47 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { AuthForm } from './AuthForm'
 
-describe('AuthForm', () => {
-  it('renders login form when not authenticated', () => {
-    render(
-      <AuthForm
-        onLogin={vi.fn()}
-        onLogout={vi.fn()}
-        isAuthenticated={false}
-      />
-    )
-
-    expect(screen.getByPlaceholderText(/handle/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/app password/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Login' })).toBeInTheDocument()
-  })
-
-  it('shows logged in state when authenticated', () => {
-    render(
-      <AuthForm
-        onLogin={vi.fn()}
-        onLogout={vi.fn()}
-        isAuthenticated={true}
-        currentHandle="test.bsky.social"
-      />
-    )
-
-    expect(screen.getByText(/logged in as/i)).toBeInTheDocument()
-    expect(screen.getByText(/@test.bsky.social/)).toBeInTheDocument()
-    expect(screen.getByText('Logout')).toBeInTheDocument()
-  })
-
-  it('calls onLogin with handle and password', async () => {
+describe('OAuth login form', () => {
+  it('collects only a handle and explains authorization redirect', async () => {
     const onLogin = vi.fn().mockResolvedValue(undefined)
+    const { container } = render(
+      <AuthForm onLogin={onLogin} onLogout={vi.fn()} isAuthenticated={false} />
+    )
+    expect(container.querySelector('input[type="password"]')).toBeNull()
+    expect(screen.getByText(/redirect.*account.*server/i)).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '@test.example' } })
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('test.example'))
+  })
+  it('blocks login until initialization finishes', () => {
+    render(<AuthForm onLogin={vi.fn()} onLogout={vi.fn()} isAuthenticated={false} isInitializing />)
+    expect(screen.getByRole('status')).toHaveTextContent(/checking/i)
+    expect(screen.queryByRole('textbox')).toBeNull()
+  })
+  it('handles rejected login without an unhandled promise', async () => {
     render(
       <AuthForm
-        onLogin={onLogin}
+        onLogin={vi.fn().mockRejectedValue(new Error('offline'))}
         onLogout={vi.fn()}
         isAuthenticated={false}
       />
     )
-
-    fireEvent.change(screen.getByPlaceholderText(/handle/i), {
-      target: { value: 'user.bsky.social' },
-    })
-    fireEvent.change(screen.getByPlaceholderText(/app password/i), {
-      target: { value: 'secret-password' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Login' }))
-
-    await waitFor(() => {
-      expect(onLogin).toHaveBeenCalledWith('user.bsky.social', 'secret-password')
-    })
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'test.example' } })
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/sign in/i))
   })
-
-  it('strips @ from handle', async () => {
-    const onLogin = vi.fn().mockResolvedValue(undefined)
-    render(
-      <AuthForm
-        onLogin={onLogin}
-        onLogout={vi.fn()}
-        isAuthenticated={false}
-      />
-    )
-
-    fireEvent.change(screen.getByPlaceholderText(/handle/i), {
-      target: { value: '@user.bsky.social' },
-    })
-    fireEvent.change(screen.getByPlaceholderText(/app password/i), {
-      target: { value: 'password' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Login' }))
-
-    await waitFor(() => {
-      expect(onLogin).toHaveBeenCalledWith('user.bsky.social', 'password')
-    })
-  })
-
-  it('calls onLogout when logout clicked', () => {
+  it('calls logout explicitly', () => {
     const onLogout = vi.fn()
     render(
       <AuthForm
         onLogin={vi.fn()}
         onLogout={onLogout}
-        isAuthenticated={true}
-        currentHandle="test.bsky.social"
+        isAuthenticated
+        currentHandle="test.example"
       />
     )
-
-    fireEvent.click(screen.getByText('Logout'))
-
-    expect(onLogout).toHaveBeenCalled()
-  })
-
-  it('disables login button when handle is empty', () => {
-    render(
-      <AuthForm
-        onLogin={vi.fn()}
-        onLogout={vi.fn()}
-        isAuthenticated={false}
-      />
-    )
-
-    fireEvent.change(screen.getByPlaceholderText(/app password/i), {
-      target: { value: 'password' },
-    })
-
-    expect(screen.getByRole('button', { name: 'Login' })).toBeDisabled()
-  })
-
-  it('disables login button when password is empty', () => {
-    render(
-      <AuthForm
-        onLogin={vi.fn()}
-        onLogout={vi.fn()}
-        isAuthenticated={false}
-      />
-    )
-
-    fireEvent.change(screen.getByPlaceholderText(/handle/i), {
-      target: { value: 'user.bsky.social' },
-    })
-
-    expect(screen.getByRole('button', { name: 'Login' })).toBeDisabled()
-  })
-
-  it('displays error message', () => {
-    render(
-      <AuthForm
-        onLogin={vi.fn()}
-        onLogout={vi.fn()}
-        isAuthenticated={false}
-        error="Invalid credentials"
-      />
-    )
-
-    expect(screen.getByText('Invalid credentials')).toBeInTheDocument()
-  })
-
-  it('shows Logging in... during login', async () => {
-    const onLogin = vi.fn().mockImplementation(() => new Promise(() => {}))
-    render(
-      <AuthForm
-        onLogin={onLogin}
-        onLogout={vi.fn()}
-        isAuthenticated={false}
-      />
-    )
-
-    fireEvent.change(screen.getByPlaceholderText(/handle/i), {
-      target: { value: 'user' },
-    })
-    fireEvent.change(screen.getByPlaceholderText(/app password/i), {
-      target: { value: 'pass' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Login' }))
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Logging in...' })).toBeDisabled()
-    })
-  })
-
-  it('includes link to create app password', () => {
-    render(
-      <AuthForm
-        onLogin={vi.fn()}
-        onLogout={vi.fn()}
-        isAuthenticated={false}
-      />
-    )
-
-    const link = screen.getByText('Create App Password')
-    expect(link).toHaveAttribute('href', 'https://bsky.app/settings/app-passwords')
-    expect(link).toHaveAttribute('target', '_blank')
-  })
-
-  it('clears inputs after successful login', async () => {
-    const onLogin = vi.fn().mockResolvedValue(undefined)
-    render(
-      <AuthForm
-        onLogin={onLogin}
-        onLogout={vi.fn()}
-        isAuthenticated={false}
-      />
-    )
-
-    const handleInput = screen.getByPlaceholderText(/handle/i)
-    const passwordInput = screen.getByPlaceholderText(/app password/i)
-
-    fireEvent.change(handleInput, { target: { value: 'user' } })
-    fireEvent.change(passwordInput, { target: { value: 'pass' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Login' }))
-
-    await waitFor(() => {
-      expect(handleInput).toHaveValue('')
-      expect(passwordInput).toHaveValue('')
-    })
+    fireEvent.click(screen.getByRole('button', { name: /logout/i }))
+    expect(onLogout).toHaveBeenCalledOnce()
   })
 })

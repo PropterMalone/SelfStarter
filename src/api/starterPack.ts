@@ -1,134 +1,64 @@
+// pattern: Imperative Shell
+import { TID } from '@atproto/common-web'
 import type { BlueskySession, StarterPackUser } from '../types'
 import { AuthenticatedClient } from './authenticatedClient'
 
-type SessionUpdateCallback = (session: BlueskySession) => void
-
-interface StarterPackRecord {
-  $type: 'app.bsky.graph.starterpack'
-  name: string
-  description?: string
-  list: string
-  createdAt: string
-}
-
-interface ListRecord {
-  $type: 'app.bsky.graph.list'
-  purpose: 'app.bsky.graph.defs#curatelist'
-  name: string
-  description?: string
-  createdAt: string
-}
-
-interface CreateRecordResponse {
-  uri: string
-  cid: string
-}
-
-interface ListItemRecord {
-  $type: 'app.bsky.graph.listitem'
-  subject: string
-  list: string
-  createdAt: string
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+function validateText(value: string, field: string, graphemes: number, bytes: number): void {
+  if (
+    [...segmenter.segment(value)].length > graphemes ||
+    new TextEncoder().encode(value).length > bytes
+  ) {
+    throw new Error(`${field} is too long (maximum ${graphemes} characters).`)
+  }
 }
 
 export async function createStarterPack(
   session: BlueskySession,
   name: string,
   description: string | undefined,
-  users: StarterPackUser[],
-  onSessionUpdate?: SessionUpdateCallback
+  users: StarterPackUser[]
 ): Promise<string> {
-  const client = new AuthenticatedClient(session, onSessionUpdate ?? (() => {}))
+  if (users.length < 1 || users.length > 150) throw new Error('Select between 1 and 150 accounts.')
+  if (new Set(users.map((user) => user.did)).size !== users.length)
+    throw new Error('Select distinct accounts.')
+  if (users.some((user) => !/^did:[a-z]+:[A-Za-z0-9._:%-]+$/.test(user.did)))
+    throw new Error('Each selected account must have a valid DID.')
+  if (!name.trim()) throw new Error('A starter pack name is required.')
+  validateText(name, 'Name', 50, 500)
+  validateText(description || '', 'Description', 300, 3000)
   const now = new Date().toISOString()
-
-  // First create a list to hold the users
-  const listResponse = await client.post<CreateRecordResponse>(
-    'com.atproto.repo.createRecord',
-    {
-      repo: session.did,
-      collection: 'app.bsky.graph.list',
-      record: {
-        $type: 'app.bsky.graph.list',
-        purpose: 'app.bsky.graph.defs#curatelist',
-        name: `${name} - List`,
-        description: description || '',
-        createdAt: now,
-      } satisfies ListRecord,
-    }
-  )
-
-  // Add users to the list (max 150)
-  const usersToAdd = users.slice(0, 150)
-
-  for (const user of usersToAdd) {
-    try {
-      await client.post<CreateRecordResponse>(
-        'com.atproto.repo.createRecord',
-        {
-          repo: client.getSession().did,
-          collection: 'app.bsky.graph.listitem',
-          record: {
-            $type: 'app.bsky.graph.listitem',
-            subject: user.did,
-            list: listResponse.uri,
-            createdAt: now,
-          } satisfies ListItemRecord,
-        }
-      )
-    } catch {
-      // User might not exist or be blocked
-    }
-
-    // Small delay to avoid rate limiting
-    await new Promise((r) => setTimeout(r, 50))
-  }
-
-  // Create the starter pack referencing the list
-  const starterPackResponse = await client.post<CreateRecordResponse>(
-    'com.atproto.repo.createRecord',
-    {
-      repo: client.getSession().did,
-      collection: 'app.bsky.graph.starterpack',
-      record: {
-        $type: 'app.bsky.graph.starterpack',
-        name,
-        description: description || '',
-        list: listResponse.uri,
-        createdAt: now,
-      } satisfies StarterPackRecord,
-    }
-  )
-
-  // Convert AT URI to Bluesky URL
-  // at://did:plc:xxx/app.bsky.graph.starterpack/yyy -> https://bsky.app/starter-pack/handle/yyy
-  const currentSession = client.getSession()
-  const rkey = starterPackResponse.uri.split('/').pop()
-  return `https://bsky.app/starter-pack/${currentSession.handle}/${rkey}`
-}
-
-interface GetStarterPackResponse {
-  starterPack: {
-    uri: string
-    cid: string
-    record: StarterPackRecord
-    creator: {
-      did: string
-      handle: string
-      displayName?: string
-      avatar?: string
-    }
-    listItemCount: number
-  }
-}
-
-export async function getStarterPack(
-  session: BlueskySession,
-  uri: string,
-  onSessionUpdate?: SessionUpdateCallback
-): Promise<GetStarterPackResponse> {
-  const client = new AuthenticatedClient(session, onSessionUpdate ?? (() => {}))
-  return client.get<GetStarterPackResponse>(
-    'app.bsky.graph.getStarterPack',
-    { starterPack: uri }
-  )
+  const listKey = TID.nextStr()
+  const packKey = TID.nextStr()
+  const list = `at://${session.did}/app.bsky.graph.list/${listKey}`
+  const create = (collection: string, rkey: string, value: Record<string, unknown>) => ({
+    $type: 'com.atproto.repo.applyWrites#create',
+    collection,
+    rkey,
+    value: { $type: collection, ...value },
+  })
+  // One transaction: never claim a complete pack after a failed member addition.
+  const writes = [
+    create('app.bsky.graph.list', listKey, {
+      purpose: 'app.bsky.graph.defs#curatelist',
+      name,
+      description: description || '',
+      createdAt: now,
+    }),
+    ...users.map((user) =>
+      create('app.bsky.graph.listitem', TID.nextStr(), { subject: user.did, list, createdAt: now })
+    ),
+    create('app.bsky.graph.starterpack', packKey, {
+      name,
+      description: description || '',
+      list,
+      createdAt: now,
+    }),
+  ]
+  await new AuthenticatedClient(session).post('com.atproto.repo.applyWrites', {
+    repo: session.did,
+    validate: true,
+    writes,
+  })
+  return `https://bsky.app/starter-pack/${session.did}/${packKey}`
 }

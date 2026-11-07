@@ -1,108 +1,109 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createSession, refreshSession } from './auth'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockFetch = vi.fn()
-global.fetch = mockFetch
-
-beforeEach(() => {
-  mockFetch.mockReset()
-})
-
-describe('createSession', () => {
-  it('creates session with identifier and password', async () => {
-    const mockResponse = {
-      did: 'did:plc:abc123',
-      handle: 'user.bsky.social',
-      accessJwt: 'access-jwt',
-      refreshJwt: 'refresh-jwt',
+const sdk = vi.hoisted(() => ({
+  init: vi.fn(),
+  signIn: vi.fn(),
+  options: {} as Record<string, unknown>,
+}))
+vi.mock('@atproto/oauth-client-browser', () => ({
+  buildAtprotoLoopbackClientMetadata: (config: object) => ({
+    client_id: 'http://localhost',
+    ...config,
+  }),
+  BrowserOAuthClient: class {
+    constructor(options: Record<string, unknown>) {
+      sdk.options = options
     }
+    init = sdk.init
+    signIn = sdk.signIn
+  },
+}))
+vi.mock('./client', () => ({ publicGet: vi.fn().mockResolvedValue({ handle: 'test.example' }) }))
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockResponse),
-    })
+async function load() {
+  return import('./auth')
+}
 
-    const session = await createSession('user.bsky.social', 'app-password')
-
-    expect(session).toEqual({
-      did: 'did:plc:abc123',
-      handle: 'user.bsky.social',
-      accessJwt: 'access-jwt',
-      refreshJwt: 'refresh-jwt',
-    })
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://bsky.social/xrpc/com.atproto.server.createSession',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          identifier: 'user.bsky.social',
-          password: 'app-password',
-        }),
-      })
-    )
+describe('OAuth boundary', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    localStorage.clear()
+    sdk.init.mockResolvedValue(undefined)
+    sdk.signIn.mockResolvedValue(undefined)
   })
-
-  it('throws on invalid credentials', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 401,
-      statusText: 'Unauthorized',
-      json: () => Promise.resolve({
-        error: 'AuthenticationRequired',
-        message: 'Invalid identifier or password',
+  it('purges legacy JWT storage and initializes the SDK once for concurrent callers', async () => {
+    localStorage.setItem('selfstarter_session', 'legacy secret')
+    const auth = await load()
+    await Promise.all([auth.initializeAuth(), auth.initializeAuth()])
+    expect(localStorage.getItem('selfstarter_session')).toBeNull()
+    expect(sdk.init).toHaveBeenCalledTimes(1)
+  })
+  it('restores an SDK session without copying credentials', async () => {
+    const oauth = {
+      sub: 'did:plc:test',
+      fetchHandler: vi.fn(),
+      signOut: vi.fn(),
+      getTokenInfo: vi.fn().mockResolvedValue({
+        scope: (await import('../../public/oauth-client-metadata.json')).default.scope,
       }),
-    })
-
-    await expect(createSession('user', 'wrong')).rejects.toThrow('Invalid identifier or password')
-  })
-})
-
-describe('refreshSession', () => {
-  it('refreshes session with refresh token', async () => {
-    const mockResponse = {
-      did: 'did:plc:abc123',
-      handle: 'user.bsky.social',
-      accessJwt: 'new-access-jwt',
-      refreshJwt: 'new-refresh-jwt',
     }
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockResponse),
-    })
-
-    const session = await refreshSession('old-refresh-jwt')
-
-    expect(session).toEqual({
-      did: 'did:plc:abc123',
-      handle: 'user.bsky.social',
-      accessJwt: 'new-access-jwt',
-      refreshJwt: 'new-refresh-jwt',
-    })
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://bsky.social/xrpc/com.atproto.server.refreshSession',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer old-refresh-jwt',
-        }),
-      })
-    )
+    sdk.init.mockResolvedValue({ session: oauth })
+    const auth = await load()
+    expect(await auth.initializeAuth()).toEqual({ did: oauth.sub, handle: 'test.example', oauth })
   })
-
-  it('throws on expired refresh token', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      statusText: 'Bad Request',
-      json: () => Promise.resolve({
-        error: 'ExpiredToken',
-        message: 'Token has expired',
-      }),
+  it('rejects a restored atproto-only grant with an actionable fixed error', async () => {
+    sdk.init.mockResolvedValue({
+      session: {
+        sub: 'did:plc:test',
+        getTokenInfo: vi.fn().mockResolvedValue({ scope: 'atproto' }),
+      },
     })
-
-    await expect(refreshSession('expired-token')).rejects.toThrow('Token has expired')
+    const auth = await load()
+    await expect(auth.initializeAuth()).rejects.toThrow(/permissions.*sign in/i)
+  })
+  it('bounds the optional public profile lookup and falls back to the authorized DID', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(new AbortController().signal)
+    const { publicGet } = await import('./client')
+    vi.mocked(publicGet).mockRejectedValueOnce(new DOMException('Timed out', 'TimeoutError'))
+    const auth = await load()
+    const oauth = {
+      sub: 'did:plc:test',
+      getTokenInfo: vi.fn().mockResolvedValue({ scope: auth.OAUTH_SCOPE }),
+    }
+    sdk.init.mockResolvedValue({ session: oauth })
+    expect(await auth.initializeAuth()).toEqual({ did: oauth.sub, handle: oauth.sub, oauth })
+    expect(timeout).toHaveBeenCalledWith(10_000)
+    expect(publicGet).toHaveBeenCalledWith(
+      'app.bsky.actor.getProfile',
+      { actor: oauth.sub },
+      expect.any(AbortSignal)
+    )
+    timeout.mockRestore()
+  })
+  it('redirects through SDK signIn with granular scope and no password', async () => {
+    const auth = await load()
+    await auth.signIn('@test.example')
+    expect(sdk.signIn).toHaveBeenCalledWith('test.example', { scope: auth.OAUTH_SCOPE })
+    expect(auth.OAUTH_SCOPE).not.toContain('transition:generic')
+    expect((sdk.options.clientMetadata as { scope: string }).scope).toBe(auth.OAUTH_SCOPE)
+  })
+  it('reports callback denial and restore errors without leaking callback text', async () => {
+    sdk.init.mockRejectedValue(new Error('access_denied secret callback payload'))
+    const auth = await load()
+    await expect(auth.initializeAuth()).rejects.toThrow(/cancelled|denied/i)
+    expect(auth.authErrorMessage(new Error('unknown secret'))).not.toContain('secret')
+  })
+  it('signs out with the SDK and notifies subscribers on session deletion', async () => {
+    const auth = await load()
+    await auth.initializeAuth()
+    const listener = vi.fn()
+    const unsubscribe = auth.onSessionDeleted(listener)
+    const oauth = { signOut: vi.fn().mockResolvedValue(undefined) }
+    await auth.signOut({ did: 'did:plc:test', handle: 'test.example', oauth } as never)
+    expect(oauth.signOut).toHaveBeenCalledOnce()
+    ;(sdk.options.onSessionDeleted as (did: string) => void)('did:plc:test')
+    expect(listener).toHaveBeenCalledWith('did:plc:test')
+    unsubscribe()
   })
 })

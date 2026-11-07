@@ -1,0 +1,12 @@
+{
+  "client_id": "https://proptermalone.github.io/SelfStarter/oauth-client-metadata.json",
+  "client_name": "SelfStarter",
+  "client_uri": "https://proptermalone.github.io/SelfStarter/",
+  "redirect_uris": ["https://proptermalone.github.io/SelfStarter/"],
+  "scope": "atproto repo:app.bsky.graph.list?action=create repo:app.bsky.graph.listitem?action=create repo:app.bsky.graph.starterpack?action=create",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "application_type": "web",
+  "dpop_bound_access_tokens": true
+}

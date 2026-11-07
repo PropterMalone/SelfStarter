@@ -12,7 +12,9 @@ describe('HandleInput', () => {
   it('renders handle display and period selector', () => {
     render(<HandleInput {...defaultProps} />)
 
-    expect(screen.getByText('@testuser.bsky.social')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Public handle to analyze' })).toHaveValue(
+      'testuser.bsky.social'
+    )
     expect(screen.getByLabelText('Time Period')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Analyze My Interactions' })).toBeInTheDocument()
   })
@@ -20,7 +22,7 @@ describe('HandleInput', () => {
   it('displays the logged-in user handle', () => {
     render(<HandleInput {...defaultProps} handle="myuser.bsky.social" />)
 
-    expect(screen.getByText('@myuser.bsky.social')).toBeInTheDocument()
+    expect(screen.getByRole('textbox')).toHaveValue('myuser.bsky.social')
   })
 
   it('calls onAnalyze with handle and period on submit', () => {

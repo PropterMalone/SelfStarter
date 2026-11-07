@@ -1,3 +1,5 @@
+import type { OAuthSession } from '@atproto/oauth-client-browser'
+
 export interface BlueskyProfile {
   did: string
   handle: string
@@ -9,8 +11,7 @@ export interface BlueskyProfile {
 export interface BlueskySession {
   did: string
   handle: string
-  accessJwt: string
-  refreshJwt: string
+  oauth: OAuthSession
 }
 
 export interface InteractionUser {

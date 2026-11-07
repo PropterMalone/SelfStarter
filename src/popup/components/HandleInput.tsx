@@ -4,7 +4,7 @@ import type { TimePeriod } from '../../types'
 interface HandleInputProps {
   onAnalyze: (handle: string, period: TimePeriod) => void
   isLoading: boolean
-  handle: string // Required - must be logged in
+  handle?: string
 }
 
 const TIME_PERIODS: { value: TimePeriod; label: string }[] = [
@@ -17,23 +17,29 @@ const TIME_PERIODS: { value: TimePeriod; label: string }[] = [
 
 export function HandleInput({ onAnalyze, isLoading, handle }: HandleInputProps) {
   const [period, setPeriod] = useState<TimePeriod>('30d')
+  const [publicHandle, setPublicHandle] = useState(handle || '')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (handle) {
-      onAnalyze(handle, period)
-    }
+    const normalized = publicHandle.trim().replace(/^@/, '')
+    if (normalized) onAnalyze(normalized, period)
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Analyzing interactions for
+        <label htmlFor="analysis-handle" className="block text-sm font-medium text-gray-700 mb-1">
+          Public handle to analyze
         </label>
-        <div className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-700">
-          @{handle}
-        </div>
+        <input
+          id="analysis-handle"
+          value={publicHandle}
+          onChange={(event) => setPublicHandle(event.target.value)}
+          placeholder="user.bsky.social"
+          disabled={isLoading}
+          required
+          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+        />
       </div>
       <div>
         <label htmlFor="period" className="block text-sm font-medium text-gray-700 mb-1">

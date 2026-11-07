@@ -1,60 +1,71 @@
-import { useState, useEffect, useCallback } from 'react'
+// pattern: Imperative Shell
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { BlueskySession } from '../../types'
-import { createSession } from '../../api/auth'
-import { saveSession, getSession, clearSession } from '../../utils/storage'
+import { initializeAuth, signIn, signOut, onSessionDeleted, authErrorMessage } from '../../api/auth'
 
-interface UseBlueskyAuthReturn {
-  session: BlueskySession | null
-  isLoading: boolean
-  error: string | null
-  login: (handle: string, appPassword: string) => Promise<void>
-  logout: () => Promise<void>
-  updateSession: (session: BlueskySession) => Promise<void>
-}
-
-export function useBlueskyAuth(): UseBlueskyAuthReturn {
+export function useBlueskyAuth() {
   const [session, setSession] = useState<BlueskySession | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const current = useRef<BlueskySession | null>(null)
+  const generation = useRef(0)
 
   useEffect(() => {
-    getSession()
-      .then((saved) => {
-        if (saved) {
-          setSession(saved)
+    let active = true
+    const version = generation.current
+    const unsubscribe = onSessionDeleted((did) => {
+      if (current.current?.did !== did) return
+      generation.current++
+      current.current = null
+      setSession(null)
+      setError('Your session expired or was revoked. Please sign in again.')
+    })
+    initializeAuth()
+      .then((restored) => {
+        if (active && version === generation.current) {
+          current.current = restored
+          setSession(restored)
         }
       })
-      .catch(() => {
-        // Storage error, ignore
+      .catch((err: unknown) => {
+        if (active) setError(err instanceof Error ? err.message : authErrorMessage(err))
       })
       .finally(() => {
-        setIsLoading(false)
+        if (active) setIsLoading(false)
       })
+    return () => {
+      active = false
+      unsubscribe()
+    }
   }, [])
 
-  const login = useCallback(async (handle: string, appPassword: string) => {
+  const login = useCallback(async (handle: string) => {
     setError(null)
+    setNotice(null)
     try {
-      const newSession = await createSession(handle, appPassword)
-      await saveSession(newSession)
-      setSession(newSession)
+      await signIn(handle)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Login failed'
-      setError(message)
+      setError(err instanceof Error ? err.message : authErrorMessage(err))
       throw err
     }
   }, [])
 
   const logout = useCallback(async () => {
-    await clearSession()
+    const previous = current.current
+    generation.current++
+    current.current = null
     setSession(null)
     setError(null)
+    setNotice('Signed out on this device. Manage connected-app access in Bluesky settings.')
+    try {
+      if (previous) await signOut(previous)
+    } catch {
+      setError(
+        'Signed out locally, but server revocation could not be confirmed. Revoke SelfStarter in your account settings.'
+      )
+    }
   }, [])
 
-  const updateSession = useCallback(async (newSession: BlueskySession) => {
-    await saveSession(newSession)
-    setSession(newSession)
-  }, [])
-
-  return { session, isLoading, error, login, logout, updateSession }
+  return { session, isLoading, error, notice, login, logout }
 }

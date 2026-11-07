@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -17,6 +20,8 @@
     "@atcute/car": "^5.0.0",
     "@atcute/cbor": "^2.2.8",
     "@atcute/repo": "^0.1.1",
+    "@atproto/common-web": "0.5.2",
+    "@atproto/oauth-client-browser": "0.5.14",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

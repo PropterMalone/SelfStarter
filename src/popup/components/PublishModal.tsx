@@ -8,6 +8,10 @@ interface PublishModalProps {
   onPublish: (name: string, description: string) => void
   onCancel: () => void
   isPublishing: boolean
+  initialName?: string
+  initialDescription?: string
+  publisherHandle?: string
+  onDraftChange?: (name: string, description: string) => void
 }
 
 function formatPeriodLabel(period: TimePeriod): string {
@@ -36,6 +40,10 @@ export function PublishModal({
   onPublish,
   onCancel,
   isPublishing,
+  initialName,
+  initialDescription,
+  publisherHandle,
+  onDraftChange,
 }: PublishModalProps) {
   // Extract username from handle (remove .bsky.social or other domain)
   const username = useMemo(() => {
@@ -57,8 +65,8 @@ export function PublishModal({
     return `The ${selectedCount} accounts ${capitalizedUsername} interacted with the most in the ${periodLabel} as of ${dateStr}`
   }, [username, selectedCount, period])
 
-  const [name, setName] = useState(defaultName)
-  const [description, setDescription] = useState(defaultDescription)
+  const [name, setName] = useState(initialName ?? defaultName)
+  const [description, setDescription] = useState(initialDescription ?? defaultDescription)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,6 +83,7 @@ export function PublishModal({
             <h2 className="text-lg font-semibold text-gray-900">Create Starter Pack</h2>
             <p className="text-sm text-gray-500">
               {selectedCount} users will be added
+              {publisherHandle ? ` to a public starter pack owned by @${publisherHandle}` : ''}
             </p>
           </div>
 
@@ -86,7 +95,10 @@ export function PublishModal({
               id="name"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value)
+                onDraftChange?.(e.target.value, description)
+              }}
               placeholder="My Starter Pack"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isPublishing}
@@ -102,7 +114,10 @@ export function PublishModal({
             <textarea
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value)
+                onDraftChange?.(name, e.target.value)
+              }}
               placeholder="A curated list of great accounts..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               disabled={isPublishing}

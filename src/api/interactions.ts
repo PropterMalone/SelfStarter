@@ -2,6 +2,15 @@ import type { BlueskyProfile, TimePeriod, InteractionUser } from '../types'
 import { publicGet } from './client'
 import { downloadAndParseRepo, getLatestCommit, filterByPeriod, type ParsedInteractions } from './carFetcher'
 
+const MAX_INTERACTION_ACCOUNTS = 5_000
+const PROFILE_BATCH_SIZE = 20
+
+function checkAccountLimit(count: number) {
+  if (count > MAX_INTERACTION_ACCOUNTS) {
+    throw new Error('Analysis exceeds the 5,000-account safety limit. Choose a shorter time period.')
+  }
+}
+
 // Cache for parsed repo data to avoid re-downloading
 interface RepoCache {
   did: string
@@ -135,6 +144,7 @@ export async function fetchInteractions(
       existing[type]++
     } else {
       interactionCounts.set(targetDid, { likes: 0, replies: 0, reposts: 0, mentions: 0, quotes: 0, [type]: 1 })
+      checkAccountLimit(interactionCounts.size)
     }
   }
 
@@ -167,73 +177,57 @@ export async function fetchInteractions(
 
   onProgress?.('Counting interactions...', 0)
 
-  // Step 2: Sort DIDs by total interaction count and take top N
-  const TOP_N = 250 // Fetch a bit more than 200 to account for failed lookups
+  // Retain every candidate so changing scoring weights can recover low-count accounts.
+  const didsToFetch = Array.from(interactionCounts.keys())
+  const handlesToResolve = Array.from(mentionsByHandle.keys())
+  // Bound handle lookups too, before resolving them to distinct DIDs.
+  checkAccountLimit(handlesToResolve.length)
+  onProgress?.(`Found ${interactionCounts.size} unique accounts, fetching ${didsToFetch.length} profiles...`, 0)
 
-  const sortedDids = Array.from(interactionCounts.entries())
-    .map(([targetDid, counts]) => ({
-      did: targetDid,
-      counts,
-      total: counts.likes + counts.replies + counts.reposts + counts.mentions + counts.quotes,
-    }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, TOP_N)
-
-  onProgress?.(`Found ${interactionCounts.size} unique accounts, fetching top ${sortedDids.length} profiles...`, 0)
-
-  // Step 3: Batch fetch profiles for top DIDs using getProfiles (25 at a time)
   const profiles = new Map<string, ProfileView>()
-  const didsToFetch = sortedDids.map((d) => d.did)
-
-  for (let i = 0; i < didsToFetch.length; i += 25) {
-    const batch = didsToFetch.slice(i, i + 25)
-    try {
-      const response = await publicGet<GetProfilesResponse>('app.bsky.actor.getProfiles', {
-        actors: batch,
-      })
-      for (const profile of response.profiles) {
-        profiles.set(profile.did, profile)
-      }
-    } catch {
-      // Some profiles may not exist
+  for (let i = 0; i < didsToFetch.length; i += PROFILE_BATCH_SIZE) {
+    const batch = didsToFetch.slice(i, i + PROFILE_BATCH_SIZE)
+    const response = await publicGet<GetProfilesResponse>('app.bsky.actor.getProfiles', {
+      actors: batch,
+    })
+    // Successful responses may omit unavailable profiles; request failures must propagate.
+    for (const profile of response.profiles) {
+      profiles.set(profile.did, profile)
     }
-    onProgress?.(`Fetching profiles... ${Math.min(i + 25, didsToFetch.length)}/${didsToFetch.length}`, Math.min(i + 25, didsToFetch.length))
+    const completed = Math.min(i + PROFILE_BATCH_SIZE, didsToFetch.length)
+    onProgress?.(`Fetching profiles... ${completed}/${didsToFetch.length}`, completed)
 
-    // Small delay to avoid rate limiting
-    if (i + 25 < didsToFetch.length) {
+    if (completed < didsToFetch.length) {
       await new Promise((r) => setTimeout(r, 50))
     }
   }
 
-  // Step 4: Resolve mention handles and add to counts
-  // Only resolve handles that might be in our top N
-  const handlesToResolve = Array.from(mentionsByHandle.keys()).slice(0, 100) // Limit mention lookups
-
   if (handlesToResolve.length > 0) {
     onProgress?.('Resolving mentions...', 0)
 
-    for (let i = 0; i < handlesToResolve.length; i += 25) {
-      const batch = handlesToResolve.slice(i, i + 25)
-      try {
-        const response = await publicGet<GetProfilesResponse>('app.bsky.actor.getProfiles', {
-          actors: batch,
-        })
-        for (const profile of response.profiles) {
-          const mentionCount = mentionsByHandle.get(profile.handle) || 0
-          if (mentionCount > 0) {
-            profiles.set(profile.did, profile)
-            const existing = interactionCounts.get(profile.did)
-            if (existing) {
-              existing.mentions += mentionCount
-            } else {
-              interactionCounts.set(profile.did, { likes: 0, replies: 0, reposts: 0, mentions: mentionCount, quotes: 0 })
-            }
+    for (let i = 0; i < handlesToResolve.length; i += PROFILE_BATCH_SIZE) {
+      const batch = handlesToResolve.slice(i, i + PROFILE_BATCH_SIZE)
+      const response = await publicGet<GetProfilesResponse>('app.bsky.actor.getProfiles', {
+        actors: batch,
+      })
+      for (const profile of response.profiles) {
+        const mentionCount = mentionsByHandle.get(profile.handle) || 0
+        if (mentionCount > 0 && profile.did !== did) {
+          profiles.set(profile.did, profile)
+          const existing = interactionCounts.get(profile.did)
+          if (existing) {
+            existing.mentions += mentionCount
+          } else {
+            interactionCounts.set(profile.did, { likes: 0, replies: 0, reposts: 0, mentions: mentionCount, quotes: 0 })
+            checkAccountLimit(interactionCounts.size)
           }
         }
-      } catch {
-        // Some handles may not exist
       }
-      onProgress?.(`Resolving mentions... ${Math.min(i + 25, handlesToResolve.length)}/${handlesToResolve.length}`, 0)
+      const completed = Math.min(i + PROFILE_BATCH_SIZE, handlesToResolve.length)
+      onProgress?.(`Resolving mentions... ${completed}/${handlesToResolve.length}`, 0)
+      if (completed < handlesToResolve.length) {
+        await new Promise((r) => setTimeout(r, 50))
+      }
     }
   }
 
@@ -254,5 +248,5 @@ export async function fetchInteractions(
     }
   }
 
-  return users.sort((a, b) => b.interactionCount - a.interactionCount).slice(0, 200)
+  return users.sort((a, b) => b.interactionCount - a.interactionCount)
 }
