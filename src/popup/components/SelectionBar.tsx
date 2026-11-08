@@ -31,7 +31,7 @@ export function SelectionBar({
       </div>
       {isAuthenticated ? (
         <button className="button button-primary" disabled={!canPublish} onClick={onPublish}>
-          {isPublishing ? 'Publishing...' : 'Review'}
+          {isPublishing ? 'Publishing...' : 'Publish'}
         </button>
       ) : (
         <a className="button button-primary" href="#publishing-account">

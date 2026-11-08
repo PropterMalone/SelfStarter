@@ -27,7 +27,7 @@ describe('SelectionBar', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Review' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument()
   })
 
   it('shows Login to Publish when not authenticated', () => {
@@ -123,7 +123,7 @@ describe('SelectionBar', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
 
     expect(onPublish).toHaveBeenCalled()
   })
