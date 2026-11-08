@@ -54,6 +54,17 @@ it('never persists injected credential-like fields in a caller object', () => {
   saveRedirectDraft({ ...draft, oauth: { token: 'secret' }, accessJwt: 'secret' } as typeof draft)
   expect(sessionStorage.getItem('selfstarter_oauth_draft')).not.toContain('secret')
 })
+it('round trips 5001 small result rows within the encoded byte budget', () => {
+  const users = Array.from({ length: 5001 }, (_, index) => ({
+    ...draft.users[0], did: `did:plc:member${index}`, handle: `member${index}.invalid`,
+  }))
+  const largeDraft = { ...draft, users, selectedDids: [users[0].did] }
+  saveRedirectDraft(largeDraft)
+  const encoded = sessionStorage.getItem('selfstarter_oauth_draft')
+  expect(encoded).not.toBeNull()
+  expect(new TextEncoder().encode(encoded ?? '').length).toBeLessThan(2_000_000)
+  expect(readRedirectDraft(null)?.users).toHaveLength(5001)
+})
 it('keeps an explicitly empty selection and rejects malformed/oversized stored data', () => {
   saveRedirectDraft({ ...draft, selectedDids: [] })
   expect(readRedirectDraft(null)?.selectedDids).toEqual([])

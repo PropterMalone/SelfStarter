@@ -17,8 +17,15 @@ interface LatestCommitResponse {
   rev: string
 }
 
-async function resolvePds(did: string): Promise<string> {
-  const response = await fetch(`${PLC_DIRECTORY}/${encodeURIComponent(did)}`)
+function checkCancellation(signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException('Analysis stopped', 'AbortError')
+}
+
+async function resolvePds(did: string, signal?: AbortSignal): Promise<string> {
+  checkCancellation(signal)
+  const url = `${PLC_DIRECTORY}/${encodeURIComponent(did)}`
+  const response = signal ? await fetch(url, { signal }) : await fetch(url)
+  checkCancellation(signal)
   if (!response.ok) {
     throw new Error(`Failed to resolve DID: ${response.status}`)
   }
@@ -30,12 +37,12 @@ async function resolvePds(did: string): Promise<string> {
   return pdsService.serviceEndpoint
 }
 
-export async function getLatestCommit(did: string): Promise<{ rev: string; pdsUrl: string }> {
-  const pdsUrl = await resolvePds(did)
-  console.log('[CarFetcher] getLatestCommit calling:', `${pdsUrl}/xrpc/com.atproto.sync.getLatestCommit?did=${encodeURIComponent(did)}`)
-  const response = await fetch(
-    `${pdsUrl}/xrpc/com.atproto.sync.getLatestCommit?did=${encodeURIComponent(did)}`
-  )
+export async function getLatestCommit(did: string, signal?: AbortSignal): Promise<{ rev: string; pdsUrl: string }> {
+  const pdsUrl = await resolvePds(did, signal)
+  checkCancellation(signal)
+  const url = `${pdsUrl}/xrpc/com.atproto.sync.getLatestCommit?did=${encodeURIComponent(did)}`
+  const response = signal ? await fetch(url, { signal }) : await fetch(url)
+  checkCancellation(signal)
   if (!response.ok) {
     console.error('[CarFetcher] getLatestCommit failed:', response.status, response.statusText)
     throw new Error(`Failed to get latest commit: ${response.status}`)
@@ -134,17 +141,22 @@ function formatBytes(bytes: number): string {
 export async function downloadAndParseRepo(
   did: string,
   onProgress?: (stage: string) => void,
-  knownPdsUrl?: string
+  knownPdsUrl?: string,
+  signal?: AbortSignal
 ): Promise<ParsedInteractions> {
+  checkCancellation(signal)
   let pdsUrl = knownPdsUrl
   if (!pdsUrl) {
     onProgress?.('Resolving PDS...')
-    pdsUrl = await resolvePds(did)
+    pdsUrl = await resolvePds(did, signal)
   }
 
+  checkCancellation(signal)
   onProgress?.('Downloading repository...')
-
-  const response = await fetch(`${pdsUrl}/xrpc/com.atproto.sync.getRepo?did=${encodeURIComponent(did)}`)
+  checkCancellation(signal)
+  const url = `${pdsUrl}/xrpc/com.atproto.sync.getRepo?did=${encodeURIComponent(did)}`
+  const response = signal ? await fetch(url, { signal }) : await fetch(url)
+  checkCancellation(signal)
 
   if (!response.ok) {
     throw new Error(`Failed to download repo: ${response.status}`)
@@ -166,20 +178,29 @@ export async function downloadAndParseRepo(
   const chunks: Uint8Array[] = []
   let receivedBytes = 0
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
+  const cancelReader = () => { void reader.cancel().catch(() => {}) }
+  signal?.addEventListener('abort', cancelReader, { once: true })
+  try {
+    while (true) {
+      checkCancellation(signal)
+      const { done, value } = await reader.read()
+      checkCancellation(signal)
+      if (done) break
 
-    chunks.push(value)
-    receivedBytes += value.length
-
-    if (totalBytes) {
-      const percent = Math.round((receivedBytes / totalBytes) * 100)
-      onProgress?.(`Downloading repository... ${formatBytes(receivedBytes)} / ${formatBytes(totalBytes)} (${percent}%)`)
-    } else {
-      onProgress?.(`Downloading repository... ${formatBytes(receivedBytes)}`)
+      chunks.push(value)
+      receivedBytes += value.length
+      if (totalBytes) {
+        const percent = Math.round((receivedBytes / totalBytes) * 100)
+        onProgress?.(`Downloading repository... ${formatBytes(receivedBytes)} / ${formatBytes(totalBytes)} (${percent}%)`)
+      } else {
+        onProgress?.(`Downloading repository... ${formatBytes(receivedBytes)}`)
+      }
     }
+  } finally {
+    signal?.removeEventListener('abort', cancelReader)
+    reader.releaseLock?.()
   }
+  checkCancellation(signal)
 
   // Combine chunks into single Uint8Array
   const carData = new Uint8Array(receivedBytes)
@@ -205,6 +226,7 @@ export async function downloadAndParseRepo(
   const mentionRegex = /@([a-zA-Z0-9.-]+)/g
 
   for (const entry of repo) {
+    checkCancellation(signal)
     const record = decode(entry.bytes) as { $type?: string; createdAt?: string }
 
     if (!record.createdAt) {

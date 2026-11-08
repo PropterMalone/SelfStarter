@@ -246,7 +246,7 @@ describe('fetchInteractions', () => {
     return parsed
   }
 
-  it('retains all 251 accounts below the safety limit instead of truncating to 200', async () => {
+  it('retains all 251 accounts instead of truncating to 200', async () => {
     prepareAccounts(251)
     const users = await fetchInteractions('self.invalid', 'all')
     expect(users).toHaveLength(251)
@@ -297,14 +297,24 @@ describe('fetchInteractions', () => {
     }
   })
 
-  it('rejects excessive mention lookups before requesting any profiles', async () => {
-    const parsed = prepareAccounts(1)
+  it('fetches all 5001 mention handles without an account limit', async () => {
+    const parsed = prepareAccounts(0)
     parsed.mentions = Array.from({ length: 5001 }, (_, i) => ({
       handle: `mention${i}.invalid`,
       createdAt: '2026-01-01T00:00:00.000Z',
     }))
-    await expect(fetchInteractions('self.invalid', 'all')).rejects.toThrow(/5,000.*shorter time period/)
-    expect(mockFetch).toHaveBeenCalledTimes(1)
+    mockFetch.mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => ({
+        profiles: new URL(url).searchParams.getAll('actors').map((handle) => ({
+          did: `did:plc:${handle.split('.')[0]}`, handle,
+        })),
+      }),
+    }))
+    const users = await fetchInteractions('self.invalid', 'all')
+    expect(users).toHaveLength(5001)
+    expect(mockFetch).toHaveBeenCalledTimes(252)
+    expect(users.every((user) => user.interactions.mentions === 1)).toBe(true)
   })
 
   it('merges repeated mentions and URI interactions for the same author', async () => {
@@ -323,10 +333,97 @@ describe('fetchInteractions', () => {
     expect(new URL(mockFetch.mock.calls[2][0]).searchParams.getAll('actors')).toEqual(['like0.invalid'])
   })
 
-  it('rejects more than 5000 distinct accounts before requesting profiles', async () => {
+  it('fetches all 5001 authors and reports completed profile work', async () => {
     prepareAccounts(5001)
-    await expect(fetchInteractions('self.invalid', 'all')).rejects.toThrow(/5,000.*shorter time period/)
-    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const progress = vi.fn()
+    const users = await fetchInteractions('self.invalid', 'all', progress)
+    expect(users).toHaveLength(5001)
+    expect(mockFetch).toHaveBeenCalledTimes(252)
+    expect(progress).toHaveBeenCalledWith('Fetching profiles 0 of 5001', 0, 5001)
+    expect(progress).toHaveBeenCalledWith('Fetching profiles 20 of 5001', 20, 5001)
+    expect(progress).toHaveBeenCalledWith('Fetching profiles 5001 of 5001', 5001, 5001)
+  })
+
+  it('retains 5001 authors plus 5001 distinct mention-only accounts', async () => {
+    const parsed = prepareAccounts(5001)
+    parsed.mentions = Array.from({ length: 5001 }, (_, i) => ({
+      handle: `mention${i}.invalid`, createdAt: '2026-01-01T00:00:00.000Z',
+    }))
+    mockFetch.mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => ({ profiles: new URL(url).searchParams.getAll('actors').map((actor) => ({
+        did: actor.startsWith('did:') ? actor : `did:plc:${actor.split('.')[0]}`,
+        handle: actor.startsWith('did:') ? `${actor.slice(8)}.invalid` : actor,
+      })) }),
+    }))
+    const progress = vi.fn()
+    const users = await fetchInteractions('self.invalid', '30d', progress)
+    expect(users).toHaveLength(10002)
+    expect(users.filter((user) => user.interactions.mentions === 1)).toHaveLength(5001)
+    expect(users.filter((user) => user.interactions.likes === 2)).toHaveLength(5001)
+    expect(progress).toHaveBeenLastCalledWith('Fetching profiles 10002 of 10002', 10002, 10002)
+    expect(mockFetch).toHaveBeenCalledTimes(503)
+  })
+
+  it('cancels mention batches without starting subsequent requests', async () => {
+    const parsed = prepareAccounts(0)
+    parsed.mentions = Array.from({ length: 41 }, (_, i) => ({
+      handle: `mention${i}.invalid`, createdAt: '2026-01-01T00:00:00.000Z',
+    }))
+    const controller = new AbortController()
+    await expect(fetchInteractions('self.invalid', 'all', (_message, completed) => {
+      if (completed === 20) controller.abort()
+    }, controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects an already aborted analysis before any requests', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(fetchInteractions('self.invalid', 'all', undefined, controller.signal))
+      .rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockFetch).not.toHaveBeenCalled()
+    expect(mockGetLatestCommit).not.toHaveBeenCalled()
+    expect(mockDownloadAndParseRepo).not.toHaveBeenCalled()
+  })
+
+  it('aborts an active profile request without starting another batch', async () => {
+    prepareAccounts(41)
+    const controller = new AbortController()
+    mockFetch.mockImplementationOnce((_url: string, options: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        expect(options.signal).toBe(controller.signal)
+        options.signal?.addEventListener('abort', () => reject(new DOMException('Stopped', 'AbortError')))
+        controller.abort()
+      })
+    )
+    await expect(fetchInteractions('self.invalid', 'all', undefined, controller.signal))
+      .rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(mockGetLatestCommit).toHaveBeenCalledWith('did:plc:self', controller.signal)
+  })
+
+  it('checks cancellation between successful profile batches', async () => {
+    prepareAccounts(41)
+    const controller = new AbortController()
+    const progress = (_message: string, count: number) => {
+      if (count === 20) controller.abort()
+    }
+    await expect(fetchInteractions('self.invalid', 'all', progress, controller.signal))
+      .rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not fall back to another repo download after cancellation', async () => {
+    prepareAccounts(1)
+    const controller = new AbortController()
+    mockGetLatestCommit.mockImplementation(async () => {
+      controller.abort()
+      throw new DOMException('Stopped', 'AbortError')
+    })
+    await expect(fetchInteractions('self.invalid', 'all', undefined, controller.signal))
+      .rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockDownloadAndParseRepo).not.toHaveBeenCalled()
   })
 
   it.each([0, 1])('rejects a profile 503 after %i successful batches instead of returning partial users', async (successfulBatches) => {

@@ -32,7 +32,6 @@ function valid(value: unknown): value is RedirectDraft {
     !shortString(d.name, 500) ||
     !shortString(d.description, 3000) ||
     !Array.isArray(d.users) ||
-    d.users.length > 5000 ||
     !Array.isArray(d.selectedDids) ||
     d.selectedDids.length > 150
   )

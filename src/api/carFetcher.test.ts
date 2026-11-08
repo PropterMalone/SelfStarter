@@ -60,6 +60,42 @@ function mockCarResponse(chunks: Uint8Array[], rev = 'test-rev') {
 }
 
 describe('downloadAndParseRepo', () => {
+  it('rejects a pre-aborted download before making a request', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(downloadAndParseRepo('did:plc:synthetic', undefined, undefined, controller.signal))
+      .rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('forwards the signal through DID resolution and repository download', async () => {
+    const controller = new AbortController()
+    mockFetch.mockResolvedValueOnce(mockPlcResponse())
+    mockFetch.mockResolvedValueOnce(mockCarResponse([]))
+    mockRepoFromUint8Array.mockReturnValueOnce([] as unknown as ReturnType<typeof atcuteRepo.fromUint8Array>)
+    await downloadAndParseRepo('did:plc:synthetic', undefined, undefined, controller.signal)
+    expect(mockFetch.mock.calls.every(([, options]) => options.signal === controller.signal)).toBe(true)
+  })
+
+  it('cancels a pending stream read and does not parse after abort', async () => {
+    const controller = new AbortController()
+    let finish!: (value: { done: true; value: undefined }) => void
+    const cancel = vi.fn(async () => { finish({ done: true, value: undefined }) })
+    const releaseLock = vi.fn()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: { get: () => null },
+      body: { getReader: () => ({
+        read: () => new Promise((resolve) => { finish = resolve; controller.abort() }),
+        cancel, releaseLock,
+      }) },
+    })
+    await expect(downloadAndParseRepo('did:plc:synthetic', undefined, 'https://pds.invalid', controller.signal))
+      .rejects.toMatchObject({ name: 'AbortError' })
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(releaseLock).toHaveBeenCalledOnce()
+    expect(mockRepoFromUint8Array).not.toHaveBeenCalled()
+  })
   it('downloads CAR file and parses likes', async () => {
     const mockCarData = new Uint8Array([1, 2, 3])
 

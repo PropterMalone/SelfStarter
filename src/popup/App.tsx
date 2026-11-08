@@ -55,6 +55,7 @@ function Workflow({ auth }: { auth: Auth }) {
     error: interactionError,
     progress,
     analyze,
+    cancel,
     reset: resetAnalysis,
   } = useInteractions()
   const {
@@ -203,6 +204,11 @@ function Workflow({ auth }: { auth: Auth }) {
               <p role="status" className="mt-3 text-sm text-gray-500">
                 {progress}
               </p>
+            )}
+            {isLoading && (
+              <button type="button" onClick={cancel} className="mt-3 px-4 py-2 bg-white border rounded">
+                Stop
+              </button>
             )}
             {error && (
               <p role="alert" className="mt-3 text-sm text-red-600">
