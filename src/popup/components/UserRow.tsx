@@ -48,10 +48,7 @@ export function UserRow({ user, isSelected, onToggle, disabled }: UserRowProps) 
           ))}
         </span>
       </span>
-      <span
-        className="profile-score"
-        title="Weighted score: interaction counts multiplied by your scoring weights"
-      >
+      <span className="profile-score">
         <strong>{user.interactionCount}</strong>
         <span>score</span>
       </span>

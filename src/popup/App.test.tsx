@@ -71,6 +71,17 @@ beforeEach(() => {
     },
   ])
 })
+it('shows functional headings without marketing or explanatory copy', () => {
+  render(<App />)
+  expect(screen.getByRole('heading', { name: 'Accounts' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Account', exact: true })).toBeInTheDocument()
+  expect(screen.getByText('No accounts yet')).toBeInTheDocument()
+  expect(
+    screen.queryByText(
+      /good conversations|great starting point|good place to start|made for bluesky|who’s in the conversation|make it yours|nothing is published|public data only|review before publishing|your interactions\. your starter pack/i
+    )
+  ).not.toBeInTheDocument()
+})
 it('supports public analysis and preserves explicit None through reranking', async () => {
   render(<App />)
   fireEvent.click(screen.getByText('Analyze public'))

@@ -51,7 +51,7 @@ describe('UserList', () => {
       />
     )
 
-    expect(screen.getByText(/no users found/i)).toBeInTheDocument()
+    expect(screen.getByText(/no accounts yet/i)).toBeInTheDocument()
   })
 
   it('renders list of users', () => {

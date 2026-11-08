@@ -29,7 +29,7 @@ export function HandleInput({ onAnalyze, isLoading, handle }: HandleInputProps) 
     <form onSubmit={handleSubmit} className="analysis-form">
       <div>
         <label htmlFor="analysis-handle" className="block text-sm font-medium text-gray-700 mb-1">
-          Public handle to analyze
+          Handle
         </label>
         <input
           id="analysis-handle"
@@ -60,7 +60,7 @@ export function HandleInput({ onAnalyze, isLoading, handle }: HandleInputProps) 
         </select>
       </div>
       <button type="submit" disabled={isLoading} className="button button-primary analyze-button">
-        {isLoading ? 'Analyzing...' : 'Analyze interactions'}
+        {isLoading ? 'Analyzing...' : 'Analyze'}
       </button>
     </form>
   )

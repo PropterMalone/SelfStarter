@@ -27,7 +27,7 @@ describe('SelectionBar', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Review & publish' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Review' })).toBeInTheDocument()
   })
 
   it('shows Login to Publish when not authenticated', () => {
@@ -40,7 +40,7 @@ describe('SelectionBar', () => {
       />
     )
 
-    expect(screen.getByRole('link', { name: 'Sign in to publish' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
       'href',
       '#publishing-account'
     )
@@ -123,7 +123,7 @@ describe('SelectionBar', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Review & publish' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
 
     expect(onPublish).toHaveBeenCalled()
   })

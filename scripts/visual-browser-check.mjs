@@ -15,7 +15,7 @@ const server = await createServer({ server: { host: '127.0.0.1', port: 0 } })
 await server.listen()
 const port = server.httpServer.address().port
 const base = `http://127.0.0.1:${port}/SelfStarter/`
-const output = 'artifacts/visual-refresh'
+const output = 'artifacts/minimal-copy'
 await mkdir(output, { recursive: true })
 const names = [
   'Orbit Garden',
@@ -70,12 +70,17 @@ try {
       console.error('Browser error:', error.message)
     })
     await page.goto(base)
-    await page.getByRole('button', { name: 'Analyze interactions' }).waitFor()
+    await page.getByRole('button', { name: 'Analyze' }).waitFor()
     await page.locator('.brand-mark img').evaluate(async (image) => {
       await image.decode()
       if (!image.complete || image.naturalWidth !== 64) throw new Error('Brand icon did not load')
     })
     assert.equal(await page.title(), 'SelfStarter')
+    assert.doesNotMatch(
+      await page.locator('body').innerText(),
+      /good conversations|great starting point|good place to start|made for bluesky|who’s in the conversation|make it yours|nothing is published|public data only|review before publishing|never collects|on your terms/i
+    )
+    assert.equal(await page.getByRole('heading', { name: 'Accounts', exact: true }).count(), 1)
     const favicon = await page.locator('link[rel=icon]').getAttribute('href')
     assert.ok(favicon.endsWith('/selfstarter.svg'))
     assert.equal((await page.request.get(new URL(favicon, base).href)).status(), 200)
@@ -88,14 +93,18 @@ try {
       true
     )
     await page
-      .getByRole('textbox', { name: 'Public handle to analyze' })
+      .locator('.analysis-form')
+      .getByRole('textbox', { name: 'Handle', exact: true })
       .fill('conversation-garden.example')
-    await page.getByRole('button', { name: 'Analyze interactions' }).click()
-    await page.getByText('Finding public interactions', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Analyze' }).click()
+    await page
+      .getByRole('status')
+      .filter({ hasText: 'Counting likes, replies, reposts, mentions, and quotes…' })
+      .waitFor()
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
-    assert.equal(await page.getByRole('button', { name: 'Analyze interactions' }).isEnabled(), true)
+    assert.equal(await page.getByRole('button', { name: 'Analyze' }).isEnabled(), true)
     assert.equal(await page.getByRole('checkbox', { name: /^Select @/ }).count(), 0)
-    await page.getByRole('button', { name: 'Analyze interactions' }).click()
+    await page.getByRole('button', { name: 'Analyze' }).click()
     await page.getByText('Orbit Garden', { exact: true }).waitFor()
     await page.screenshot({ path: `${output}/${label}-results.png`, fullPage: true })
     assert.equal(
@@ -118,11 +127,14 @@ try {
     await page.keyboard.press('Space')
     assert.equal(await page.getByRole('checkbox', { name: /^Select @/ }).isChecked(), true)
     await page.getByRole('searchbox', { name: 'Filter profiles' }).fill('')
-    await page.getByRole('link', { name: 'Sign in to publish' }).click()
-    await page.getByRole('textbox', { name: 'Your account handle' }).fill('starter-garden.example')
-    await page.getByRole('button', { name: 'Sign in with Bluesky' }).click()
-    await page.getByRole('button', { name: 'Review & publish' }).waitFor()
-    await page.getByRole('button', { name: 'Review & publish' }).click()
+    await page.getByRole('link', { name: 'Sign in', exact: true }).click()
+    await page
+      .locator('.auth-form')
+      .getByRole('textbox', { name: 'Handle', exact: true })
+      .fill('starter-garden.example')
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await page.getByRole('button', { name: 'Review' }).waitFor()
+    await page.getByRole('button', { name: 'Review' }).click()
     const dialog = page.getByRole('dialog')
     await dialog.waitFor()
     assert.equal(await dialog.getByText('@starter-garden.example', { exact: true }).count(), 1)
@@ -137,18 +149,14 @@ try {
     )
     await page.keyboard.press('Escape')
     assert.equal(await page.getByRole('dialog').count(), 0)
-    await page.getByRole('button', { name: 'Review & publish' }).scrollIntoViewIfNeeded()
+    await page.getByRole('button', { name: 'Review' }).scrollIntoViewIfNeeded()
     const bottom = await page.locator('.selection-bar').boundingBox()
     assert.ok(bottom && bottom.y + bottom.height <= viewport.height + 1)
     await page.evaluate(() =>
       globalThis.scrollTo(0, globalThis.document.documentElement.scrollHeight)
     )
-    const footer = await page.locator('.page-footer').boundingBox()
     const lastProfile = await page.locator('.profile-card').last().boundingBox()
-    assert.ok(
-      footer && bottom && footer.y + footer.height < bottom.y,
-      'Footer must scroll clear of the selection bar'
-    )
+    assert.equal(await page.locator('.page-footer').count(), 0)
     assert.ok(
       lastProfile && bottom && lastProfile.y + lastProfile.height < bottom.y,
       'Last profile must scroll clear of the selection bar'

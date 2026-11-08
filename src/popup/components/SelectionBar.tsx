@@ -23,21 +23,19 @@ export function SelectionBar({
           <strong>{selectedCount}</strong>
           <span> / {MAX_STARTER_PACK_SIZE} selected</span>
         </div>
-        <p>
-          {isOverLimit
-            ? `(${selectedCount - MAX_STARTER_PACK_SIZE} over limit) — remove profiles to continue.`
-            : isAuthenticated
-              ? `Publishing as @${publisherHandle || 'your account'}`
-              : 'Sign in to publish. Your selection stays here.'}
-        </p>
+        {isOverLimit ? (
+          <p className="limit-error">{selectedCount - MAX_STARTER_PACK_SIZE} over limit</p>
+        ) : (
+          isAuthenticated && publisherHandle && <p>@{publisherHandle}</p>
+        )}
       </div>
       {isAuthenticated ? (
         <button className="button button-primary" disabled={!canPublish} onClick={onPublish}>
-          {isPublishing ? 'Publishing...' : 'Review & publish'}
+          {isPublishing ? 'Publishing...' : 'Review'}
         </button>
       ) : (
         <a className="button button-primary" href="#publishing-account">
-          Sign in to publish
+          Sign in
         </a>
       )}
     </div>

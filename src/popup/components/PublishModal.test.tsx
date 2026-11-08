@@ -44,7 +44,7 @@ describe('PublishModal', () => {
   it('shows selected count', () => {
     render(<PublishModal {...defaultProps} selectedCount={75} />)
 
-    expect(screen.getByText('75 users will be added')).toBeInTheDocument()
+    expect(screen.getByText('75 selected')).toBeInTheDocument()
   })
 
   it('generates default name from handle', () => {

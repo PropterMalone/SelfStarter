@@ -129,18 +129,16 @@ export function PublishModal({
       >
         <form onSubmit={handleSubmit} className="publish-form">
           <div>
-            <p className="eyebrow">ONE LAST LOOK</p>
             <h2 id="publish-title">Create Starter Pack</h2>
-            <p>{selectedCount} users will be added</p>
+            <p>{selectedCount} selected</p>
           </div>
           <div className="publisher-review">
-            <span>Publishing account</span>
+            <span>Account</span>
             <strong>@{publisherHandle || handle}</strong>
-            <p>This creates a public starter pack and list on this account.</p>
           </div>
           {selectedProfiles && (
             <details className="selected-review" open>
-              <summary>Review {selectedProfiles.length} selected profiles</summary>
+              <summary>{selectedProfiles.length} selected</summary>
               <ul>
                 {selectedProfiles.map((profile) => (
                   <li key={profile.did}>
@@ -151,9 +149,6 @@ export function PublishModal({
               </ul>
             </details>
           )}
-          <div className="review-context">
-            <p>Based on public interactions for @{handle}. The account above will own the pack.</p>
-          </div>
 
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -186,7 +181,6 @@ export function PublishModal({
                 setDescription(e.target.value)
                 onDraftChange?.(name, e.target.value)
               }}
-              placeholder="A curated list of great accounts..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               disabled={isPublishing}
               rows={3}

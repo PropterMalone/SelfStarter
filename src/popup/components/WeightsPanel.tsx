@@ -16,14 +16,8 @@ const WEIGHT_CONFIG: { key: keyof ScoringWeights; label: string }[] = [
 export function WeightsPanel({ weights, onChange, disabled }: WeightsPanelProps) {
   return (
     <details className="weights-panel" open>
-      <summary>
-        Scoring weights <span>Adjust the ranking</span>
-      </summary>
+      <summary>Weights</summary>
       <div className="weights-content">
-        <p>
-          Each interaction adds its weight to the score. Changing weights reorders profiles, not
-          your selection.
-        </p>
         {WEIGHT_CONFIG.map(({ key, label }) => (
           <div key={key} className="weight-control">
             <label htmlFor={`weight-${key}`}>{label}</label>
@@ -39,9 +33,6 @@ export function WeightsPanel({ weights, onChange, disabled }: WeightsPanelProps)
             />
           </div>
         ))}
-        <p className="weight-footnote">
-          Score is weighted. Interaction totals are the original counts.
-        </p>
       </div>
     </details>
   )

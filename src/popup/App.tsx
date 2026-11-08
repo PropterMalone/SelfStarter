@@ -32,13 +32,8 @@ export function App() {
                 height="44"
               />
             </span>
-            <span>
-              SelfStarter<span className="brand-caption">A good place to start.</span>
-            </span>
+            <h1>SelfStarter</h1>
           </a>
-          <span className="header-badge">
-            <span /> Made for Bluesky
-          </span>
         </div>
       </header>
       {auth.isLoading ? (
@@ -176,7 +171,6 @@ function Workflow({ auth }: { auth: Auth }) {
     return (
       <main className="p-8 text-center space-y-4">
         <h2 className="text-xl font-semibold">Starter Pack Created!</h2>
-        <p>Your starter pack is now live on Bluesky.</p>
         <a
           href={publishedUrl}
           target="_blank"
@@ -193,52 +187,16 @@ function Workflow({ auth }: { auth: Auth }) {
   const error = localError || interactionError || publishError
   return (
     <main id="main-content" className={`main-content ${results.length ? 'has-selection-bar' : ''}`}>
-      <section className="hero">
-        <p className="eyebrow">YOUR INTERACTIONS. YOUR STARTER PACK.</p>
-        <h1>
-          Good conversations.
-          <br />
-          <span>A great starting point.</span>
-        </h1>
-        <p className="hero-description">
-          Turn public Bluesky interactions into a starter pack. Find the accounts, make your
-          selection, then share it on your terms.
-        </p>
-        <ol className="workflow-steps" aria-label="How it works">
-          <li>
-            <span>1</span> Analyze a handle
-          </li>
-          <li>
-            <span>2</span> Choose profiles
-          </li>
-          <li>
-            <span>3</span> Review & publish
-          </li>
-        </ol>
-      </section>
-      <section className="analysis-panel" aria-labelledby="analysis-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">START HERE</p>
-            <h2 id="analysis-title">Who’s in the conversation?</h2>
-          </div>
-          <span className="public-badge">No sign in needed</span>
-        </div>
+      <section className="analysis-panel" aria-label="Analyze interactions">
         <HandleInput
           onAnalyze={handleAnalyze}
           isLoading={isLoading || isPublishing}
           handle={auth.session?.handle || ''}
         />
-        <p className="analysis-note">
-          Analyze your own handle or any public account. You choose what goes in the pack.
-        </p>
         {isLoading && (
           <div className="analysis-progress" role="status">
             <span className="spinner" aria-hidden="true" />
-            <div>
-              <strong>Finding public interactions</strong>
-              <p>{progress || 'Starting the analysis…'}</p>
-            </div>
+            <p>{progress || 'Analyzing...'}</p>
           </div>
         )}
         {isLoading && (
@@ -248,7 +206,6 @@ function Workflow({ auth }: { auth: Auth }) {
         )}
         {error && (
           <div role="alert" className="error-message">
-            <strong>Something needs attention</strong>
             <p>{error}</p>
           </div>
         )}
@@ -268,8 +225,7 @@ function Workflow({ auth }: { auth: Auth }) {
             />
           </div>
           <div className="sidebar-panel account-panel" id="publishing-account">
-            <p className="eyebrow">WHEN YOU’RE READY</p>
-            <h2>Publishing account</h2>
+            <h2>Account</h2>
             <AuthForm
               onLogin={login}
               onLogout={logout}
@@ -278,25 +234,10 @@ function Workflow({ auth }: { auth: Auth }) {
               error={auth.error || undefined}
             />
           </div>
-          <p className="sidebar-note">
-            Nothing is published until you review the account, profiles, and pack details, then
-            choose Create.
-          </p>
         </aside>
         <section className="results-panel" aria-labelledby="results-title" aria-busy={isLoading}>
           <div className="results-heading">
-            <div>
-              <p className="eyebrow">MAKE IT YOURS</p>
-              <h2 id="results-title">
-                {results.length ? 'Choose your starter pack' : 'Your next starter pack starts here'}
-              </h2>
-              <p>
-                {results.length
-                  ? `Public interactions for @${analyzedHandle} · ${analyzedPeriod === 'all' ? 'All time' : analyzedPeriod === '1y' ? '1 year' : analyzedPeriod.replace('d', ' days')}`
-                  : 'A little context before you begin.'}
-              </p>
-            </div>
-            {!!results.length && <span className="rank-badge">Ranked by weighted score</span>}
+            <h2 id="results-title">Accounts</h2>
           </div>
           {!results.length ? (
             <div className="empty-state">
@@ -307,25 +248,7 @@ function Workflow({ auth }: { auth: Auth }) {
                 <span className="art-avatar art-three">c</span>
                 <span className="art-center">+</span>
               </div>
-              <h3>
-                {isLoading
-                  ? 'Finding your starting point…'
-                  : analyzedHandle
-                    ? 'No interactions in this period'
-                    : 'Start with a conversation.'}
-              </h3>
-              <p>
-                {isLoading
-                  ? 'Public interactions take a moment to collect. Your results will appear here when the analysis finishes.'
-                  : analyzedHandle
-                    ? 'Try another time period or a different public handle.'
-                    : 'Enter a public handle above. We’ll rank the accounts it interacted with, and you decide who belongs in the pack.'}
-              </p>
-              <div className="empty-features">
-                <span>Public data only</span>
-                <span>Up to 150 profiles</span>
-                <span>You review before publishing</span>
-              </div>
+              <p>{isLoading ? 'Analyzing...' : 'No accounts yet'}</p>
             </div>
           ) : (
             <UserList
@@ -352,7 +275,6 @@ function Workflow({ auth }: { auth: Auth }) {
           )}
         </section>
       </div>
-      <footer className="page-footer">Built for the conversations that make Bluesky yours.</footer>
       {!!results.length && (
         <div className="selection-bar">
           <SelectionBar

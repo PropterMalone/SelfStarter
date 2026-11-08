@@ -61,9 +61,7 @@ it('describes local signout without claiming server revocation when SDK resolves
   const { result } = renderHook(useBlueskyAuth)
   await waitFor(() => expect(result.current.session).toBe(session))
   await act(async () => result.current.logout())
-  expect(result.current.notice).toBe(
-    'Signed out on this device. Manage connected-app access in Bluesky settings.'
-  )
+  expect(result.current.notice).toBe('Signed out')
   expect(result.current.error).toBeNull()
   expect(result.current.session).toBeNull()
   await act(async () => result.current.login('test.example'))

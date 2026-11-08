@@ -60,13 +60,8 @@ export function AuthForm({
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-3">
-          <p className="text-sm font-medium">Sign in to publish starter packs</p>
-          <p className="text-sm text-gray-600">
-            We redirect you to your account’s authorization server. SelfStarter never collects your
-            password. Public analysis needs no sign in.
-          </p>
           <label htmlFor="login-handle" className="block text-sm">
-            Your account handle
+            Handle
           </label>
           <input
             id="login-handle"
@@ -84,7 +79,7 @@ export function AuthForm({
             disabled={busy || !handle.trim()}
             className="button button-secondary auth-button"
           >
-            {busy ? 'Redirecting…' : 'Sign in with Bluesky'}
+            {busy ? 'Redirecting…' : 'Sign in'}
           </button>
         </form>
       )}

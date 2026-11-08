@@ -57,7 +57,7 @@ export function useBlueskyAuth() {
     current.current = null
     setSession(null)
     setError(null)
-    setNotice('Signed out on this device. Manage connected-app access in Bluesky settings.')
+    setNotice('Signed out')
     try {
       if (previous) await signOut(previous)
     } catch {

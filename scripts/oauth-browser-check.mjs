@@ -53,10 +53,16 @@ try {
     const errors = []
     page.on('pageerror', (error) => errors.push(error.message))
     await page.goto(base.replace('127.0.0.1', host))
-    await page.getByRole('button', { name: 'Sign in with Bluesky' }).waitFor()
+    await page.getByRole('button', { name: 'Sign in' }).waitFor()
     assert.equal(await page.getByRole('alert').count(), 0)
     assert.equal(await page.locator('input[type=password]').count(), 0)
-    assert.equal(await page.getByRole('textbox', { name: 'Public handle to analyze' }).count(), 1)
+    assert.equal(
+      await page
+        .locator('.analysis-form')
+        .getByRole('textbox', { name: 'Handle', exact: true })
+        .count(),
+      1
+    )
     assert.deepEqual(errors, [])
     assert.deepEqual(external, [])
     assert.equal(['127.0.0.1', 'localhost'].includes(new URL(page.url()).hostname), true)
@@ -151,8 +157,11 @@ try {
   })
   const signInPage = await authorization.newPage()
   await signInPage.goto(base)
-  await signInPage.getByRole('textbox', { name: 'Your account handle' }).fill('test.example')
-  await signInPage.getByRole('button', { name: 'Sign in with Bluesky' }).click()
+  await signInPage
+    .locator('.auth-form')
+    .getByRole('textbox', { name: 'Handle', exact: true })
+    .fill('test.example')
+  await signInPage.getByRole('button', { name: 'Sign in' }).click()
   try {
     await signInPage
       .getByRole('heading', { name: 'Synthetic authorization server' })

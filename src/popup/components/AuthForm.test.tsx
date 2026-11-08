@@ -3,13 +3,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { AuthForm } from './AuthForm'
 
 describe('OAuth login form', () => {
-  it('collects only a handle and explains authorization redirect', async () => {
+  it('collects only a handle without explanatory copy', async () => {
     const onLogin = vi.fn().mockResolvedValue(undefined)
     const { container } = render(
       <AuthForm onLogin={onLogin} onLogout={vi.fn()} isAuthenticated={false} />
     )
     expect(container.querySelector('input[type="password"]')).toBeNull()
-    expect(screen.getByText(/redirect.*account.*server/i)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Handle' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in', exact: true })).toBeInTheDocument()
+    expect(screen.queryByText(/authorization|password|public analysis/i)).not.toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '@test.example' } })
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith('test.example'))

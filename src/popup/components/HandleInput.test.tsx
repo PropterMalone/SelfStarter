@@ -12,11 +12,9 @@ describe('HandleInput', () => {
   it('renders handle display and period selector', () => {
     render(<HandleInput {...defaultProps} />)
 
-    expect(screen.getByRole('textbox', { name: 'Public handle to analyze' })).toHaveValue(
-      'testuser.bsky.social'
-    )
+    expect(screen.getByRole('textbox', { name: 'Handle' })).toHaveValue('testuser.bsky.social')
     expect(screen.getByLabelText('Time Period')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Analyze interactions' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Analyze' })).toBeInTheDocument()
   })
 
   it('displays the logged-in user handle', () => {
@@ -32,7 +30,7 @@ describe('HandleInput', () => {
     fireEvent.change(screen.getByLabelText('Time Period'), {
       target: { value: '7d' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Analyze interactions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze' }))
 
     expect(onAnalyze).toHaveBeenCalledWith('testuser.bsky.social', '7d')
   })
@@ -65,7 +63,7 @@ describe('HandleInput', () => {
     const onAnalyze = vi.fn()
     render(<HandleInput {...defaultProps} onAnalyze={onAnalyze} handle="specific.user.social" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Analyze interactions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze' }))
 
     expect(onAnalyze).toHaveBeenCalledWith('specific.user.social', '30d')
   })

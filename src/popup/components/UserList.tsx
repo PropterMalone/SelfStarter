@@ -32,8 +32,7 @@ export function UserList({
       (!selectedOnly || selectedDids.has(user.did)) &&
       `${user.displayName || ''} ${user.handle}`.toLowerCase().includes(query.trim().toLowerCase())
   )
-  if (!users.length)
-    return <p className="list-empty">No users found. Try a different time period.</p>
+  if (!users.length) return <p className="list-empty">No accounts yet</p>
   return (
     <div>
       <div className="results-toolbar">
@@ -81,11 +80,7 @@ export function UserList({
             className="text-button"
             onClick={onSelectAll}
             disabled={disabled || users.length > 150}
-            title={
-              users.length > 150
-                ? 'A starter pack holds up to 150 profiles. Select a smaller group.'
-                : undefined
-            }
+            title={users.length > 150 ? '150 profile limit' : undefined}
           >
             All
           </button>
@@ -93,9 +88,6 @@ export function UserList({
             None
           </button>
         </div>
-        <p className="toolbar-note">
-          Bulk actions use the full ranking, not the filter. Up to 150 profiles per pack.
-        </p>
       </div>
       <div className="profile-list">
         {visible.map((user) => (
@@ -107,11 +99,7 @@ export function UserList({
             disabled={disabled || (!selectedDids.has(user.did) && selectedDids.size >= 150)}
           />
         ))}
-        {!visible.length && (
-          <p className="list-empty">
-            No profiles match this view. Clear the search or turn off Selected only.
-          </p>
-        )}
+        {!visible.length && <p className="list-empty">No matching accounts</p>}
       </div>
     </div>
   )
