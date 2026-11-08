@@ -16,7 +16,7 @@ describe('HandleInput', () => {
       'testuser.bsky.social'
     )
     expect(screen.getByLabelText('Time Period')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Analyze My Interactions' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Analyze interactions' })).toBeInTheDocument()
   })
 
   it('displays the logged-in user handle', () => {
@@ -32,7 +32,7 @@ describe('HandleInput', () => {
     fireEvent.change(screen.getByLabelText('Time Period'), {
       target: { value: '7d' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Analyze My Interactions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze interactions' }))
 
     expect(onAnalyze).toHaveBeenCalledWith('testuser.bsky.social', '7d')
   })
@@ -65,7 +65,7 @@ describe('HandleInput', () => {
     const onAnalyze = vi.fn()
     render(<HandleInput {...defaultProps} onAnalyze={onAnalyze} handle="specific.user.social" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Analyze My Interactions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze interactions' }))
 
     expect(onAnalyze).toHaveBeenCalledWith('specific.user.social', '30d')
   })

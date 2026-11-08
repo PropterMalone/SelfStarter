@@ -27,7 +27,7 @@ describe('SelectionBar', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Review & publish' })).toBeInTheDocument()
   })
 
   it('shows Login to Publish when not authenticated', () => {
@@ -40,10 +40,13 @@ describe('SelectionBar', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Login to Publish' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Sign in to publish' })).toHaveAttribute(
+      'href',
+      '#publishing-account'
+    )
   })
 
-  it('disables button when not authenticated', () => {
+  it('does not offer a publish action when signed out', () => {
     render(
       <SelectionBar
         selectedCount={50}
@@ -53,7 +56,7 @@ describe('SelectionBar', () => {
       />
     )
 
-    expect(screen.getByRole('button')).toBeDisabled()
+    expect(screen.queryByRole('button')).toBeNull()
   })
 
   it('disables button when no users selected', () => {
@@ -92,7 +95,7 @@ describe('SelectionBar', () => {
       />
     )
 
-    expect(screen.getByText('(10 over limit)')).toBeInTheDocument()
+    expect(screen.getByText(/10 over limit/)).toBeInTheDocument()
   })
 
   it('applies red color to count when over limit', () => {
@@ -106,7 +109,7 @@ describe('SelectionBar', () => {
     )
 
     const countElement = screen.getByText('160')
-    expect(countElement).toHaveClass('text-red-500')
+    expect(countElement.parentElement).toHaveClass('limit-error')
   })
 
   it('calls onPublish when button clicked', () => {
@@ -120,7 +123,7 @@ describe('SelectionBar', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Review & publish' }))
 
     expect(onPublish).toHaveBeenCalled()
   })

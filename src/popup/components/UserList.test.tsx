@@ -12,6 +12,33 @@ const createMockUser = (id: string, count = 10): InteractionUser => ({
 })
 
 describe('UserList', () => {
+  it('filters locally without changing selection and rejects oversized bulk selections', () => {
+    const onSelectTopN = vi.fn()
+    const onSelectAll = vi.fn()
+    const users = Array.from({ length: 151 }, (_, index) => createMockUser(String(index)))
+    render(
+      <UserList
+        users={users}
+        selectedDids={new Set(['did:plc:1'])}
+        onToggle={vi.fn()}
+        onSelectAll={onSelectAll}
+        onDeselectAll={vi.fn()}
+        onSelectTopN={onSelectTopN}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'All' })).toBeDisabled()
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '151' } })
+    expect(screen.getByRole('button', { name: 'Go' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }))
+    expect(onSelectTopN).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter profiles' }), {
+      target: { value: '1.bsky' },
+    })
+    expect(screen.getAllByRole('checkbox', { name: /^Select @/ }).length).toBeLessThan(151)
+    expect(screen.getByRole('checkbox', { name: 'Select @1.bsky.social' })).toBeChecked()
+    expect(onSelectAll).not.toHaveBeenCalled()
+  })
+
   it('renders empty state when no users', () => {
     render(
       <UserList
@@ -138,7 +165,7 @@ describe('UserList', () => {
       />
     )
 
-    const checkboxes = screen.getAllByRole('checkbox')
+    const checkboxes = screen.getAllByRole('checkbox', { name: /^Select @/ })
     expect(checkboxes[0]).toBeChecked()
     expect(checkboxes[1]).not.toBeChecked()
   })

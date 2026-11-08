@@ -1,8 +1,10 @@
-import { useState, useMemo } from 'react'
+// pattern: Imperative Shell
+import { useState, useMemo, useEffect, useRef } from 'react'
 import type { TimePeriod } from '../../types'
 
 interface PublishModalProps {
   selectedCount: number
+  selectedProfiles?: { did: string; handle: string; displayName?: string }[]
   handle: string
   period: TimePeriod
   onPublish: (name: string, description: string) => void
@@ -35,6 +37,7 @@ function formatDate(date: Date): string {
 
 export function PublishModal({
   selectedCount,
+  selectedProfiles,
   handle,
   period,
   onPublish,
@@ -68,6 +71,17 @@ export function PublishModal({
   const [name, setName] = useState(initialName ?? defaultName)
   const [description, setDescription] = useState(initialDescription ?? defaultDescription)
 
+  const dialog = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    const oldOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    dialog.current?.focus()
+    return () => {
+      document.body.style.overflow = oldOverflow
+      previous?.focus()
+    }
+  }, [])
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (name.trim()) {
@@ -76,15 +90,69 @@ export function PublishModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+    <div className="modal-backdrop">
+      <div
+        className="publish-modal"
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="publish-title"
+        tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && !isPublishing) onCancel()
+          if (event.key !== 'Tab') return
+          const controls = Array.from(
+            dialog.current?.querySelectorAll<HTMLElement>(
+              'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), summary'
+            ) || []
+          )
+          const first = controls[0]
+          const last = controls[controls.length - 1]
+          if (!first) {
+            event.preventDefault()
+            return
+          }
+          if (
+            event.shiftKey &&
+            (document.activeElement === first || document.activeElement === dialog.current)
+          ) {
+            event.preventDefault()
+            last.focus()
+          } else if (
+            !event.shiftKey &&
+            (document.activeElement === last || document.activeElement === dialog.current)
+          ) {
+            event.preventDefault()
+            first.focus()
+          }
+        }}
+      >
+        <form onSubmit={handleSubmit} className="publish-form">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Create Starter Pack</h2>
-            <p className="text-sm text-gray-500">
-              {selectedCount} users will be added
-              {publisherHandle ? ` to a public starter pack owned by @${publisherHandle}` : ''}
-            </p>
+            <p className="eyebrow">ONE LAST LOOK</p>
+            <h2 id="publish-title">Create Starter Pack</h2>
+            <p>{selectedCount} users will be added</p>
+          </div>
+          <div className="publisher-review">
+            <span>Publishing account</span>
+            <strong>@{publisherHandle || handle}</strong>
+            <p>This creates a public starter pack and list on this account.</p>
+          </div>
+          {selectedProfiles && (
+            <details className="selected-review" open>
+              <summary>Review {selectedProfiles.length} selected profiles</summary>
+              <ul>
+                {selectedProfiles.map((profile) => (
+                  <li key={profile.did}>
+                    <strong>{profile.displayName || profile.handle}</strong>
+                    <span>@{profile.handle}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          <div className="review-context">
+            <p>Based on public interactions for @{handle}. The account above will own the pack.</p>
           </div>
 
           <div>
@@ -130,14 +198,14 @@ export function PublishModal({
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              className="button button-secondary flex-1"
               disabled={isPublishing}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600 disabled:opacity-50"
+              className="button button-primary flex-1"
               disabled={isPublishing || !name.trim()}
             >
               {isPublishing ? 'Creating...' : 'Create'}

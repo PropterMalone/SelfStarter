@@ -12,6 +12,25 @@ const defaultProps = {
 }
 
 describe('PublishModal', () => {
+  it('names the publishing account and exact selected profiles without publishing on open', () => {
+    const onPublish = vi.fn()
+    render(
+      <PublishModal
+        {...defaultProps}
+        selectedCount={1}
+        publisherHandle="publisher.example"
+        selectedProfiles={[
+          { did: 'did:plc:one', handle: 'garden.example', displayName: 'Garden Club' },
+        ]}
+        onPublish={onPublish}
+      />
+    )
+    expect(screen.getByRole('dialog', { name: 'Create Starter Pack' })).toBeInTheDocument()
+    expect(screen.getByText('@publisher.example')).toBeInTheDocument()
+    expect(screen.getByText('@garden.example')).toBeInTheDocument()
+    expect(onPublish).not.toHaveBeenCalled()
+  })
+
   it('renders modal with form', () => {
     render(<PublishModal {...defaultProps} />)
 
@@ -37,11 +56,18 @@ describe('PublishModal', () => {
 
   it('generates default description with count and period', () => {
     render(
-      <PublishModal {...defaultProps} handle="proptermalone.bsky.social" selectedCount={50} period="30d" />
+      <PublishModal
+        {...defaultProps}
+        handle="proptermalone.bsky.social"
+        selectedCount={50}
+        period="30d"
+      />
     )
 
     const descriptionInput = screen.getByLabelText('Description') as HTMLTextAreaElement
-    expect(descriptionInput.value).toContain('The 50 accounts Proptermalone interacted with the most')
+    expect(descriptionInput.value).toContain(
+      'The 50 accounts Proptermalone interacted with the most'
+    )
     expect(descriptionInput.value).toContain('last 30 days')
   })
 

@@ -17,9 +17,11 @@ describe('WeightsPanel', () => {
   it('displays current weight values', () => {
     render(<WeightsPanel weights={DEFAULT_WEIGHTS} onChange={vi.fn()} />)
 
-    expect(screen.getByText('1')).toBeInTheDocument() // likes
-    expect(screen.getAllByText('3')).toHaveLength(2) // replies, mentions
-    expect(screen.getAllByText('5')).toHaveLength(2) // reposts, quotes
+    expect(screen.getByRole('slider', { name: 'Likes' })).toHaveValue('1')
+    expect(screen.getByRole('slider', { name: 'Replies' })).toHaveValue('3')
+    expect(screen.getByRole('slider', { name: 'Reposts' })).toHaveValue('5')
+    expect(screen.getByRole('slider', { name: 'Mentions' })).toHaveValue('3')
+    expect(screen.getByRole('slider', { name: 'Quotes' })).toHaveValue('5')
   })
 
   it('calls onChange with updated weights when slider changes', () => {

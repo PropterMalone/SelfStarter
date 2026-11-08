@@ -1,3 +1,4 @@
+// pattern: Imperative Shell
 import { useState } from 'react'
 import type { InteractionUser } from '../../types'
 import { UserRow } from './UserRow'
@@ -9,74 +10,108 @@ interface UserListProps {
   onSelectAll: () => void
   onDeselectAll: () => void
   onSelectTopN: (n: number) => void
+  disabled?: boolean
 }
 
-export function UserList({ users, selectedDids, onToggle, onSelectAll, onDeselectAll, onSelectTopN }: UserListProps) {
+export function UserList({
+  users,
+  selectedDids,
+  onToggle,
+  onSelectAll,
+  onDeselectAll,
+  onSelectTopN,
+  disabled,
+}: UserListProps) {
   const [topNValue, setTopNValue] = useState('50')
-
-  if (users.length === 0) {
-    return (
-      <div className="text-center text-gray-500 py-8">
-        No users found. Try a different time period.
-      </div>
-    )
-  }
-
-  const handleSelectTopN = () => {
-    const n = parseInt(topNValue, 10)
-    if (n > 0) {
-      onSelectTopN(n)
-    }
-  }
-
+  const [query, setQuery] = useState('')
+  const [selectedOnly, setSelectedOnly] = useState(false)
+  const count = Number(topNValue)
+  const validCount = Number.isInteger(count) && count > 0 && count <= Math.min(users.length, 150)
+  const visible = users.filter(
+    (user) =>
+      (!selectedOnly || selectedDids.has(user.did)) &&
+      `${user.displayName || ''} ${user.handle}`.toLowerCase().includes(query.trim().toLowerCase())
+  )
+  if (!users.length)
+    return <p className="list-empty">No users found. Try a different time period.</p>
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 px-3 py-2 border-b bg-gray-50">
-        <span className="text-sm text-gray-600">
-          {users.length} users found
-        </span>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-gray-600">Select top</span>
+    <div>
+      <div className="results-toolbar">
+        <div className="filter-controls">
+          <input
+            type="search"
+            aria-label="Filter profiles"
+            placeholder="Find a name or handle…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <label className="selected-filter">
             <input
+              type="checkbox"
+              checked={selectedOnly}
+              onChange={(event) => setSelectedOnly(event.target.checked)}
+            />{' '}
+            Selected only
+          </label>
+        </div>
+        <div className="bulk-controls">
+          <span className="results-count">{users.length} users found</span>
+          <div className="top-controls">
+            <label htmlFor="top-count">Select top</label>
+            <input
+              id="top-count"
               type="number"
               min="1"
-              max={users.length}
+              max={Math.min(users.length, 150)}
               value={topNValue}
-              onChange={(e) => setTopNValue(e.target.value)}
-              className="w-16 px-2 py-1 text-sm border rounded"
+              onChange={(event) => setTopNValue(event.target.value)}
+              disabled={disabled}
             />
             <button
-              onClick={handleSelectTopN}
-              className="px-2 py-1 text-sm text-blue-500 hover:text-blue-700 active:text-blue-800"
+              className="button button-small button-secondary"
+              disabled={disabled || !validCount}
+              onClick={() => {
+                if (validCount) onSelectTopN(count)
+              }}
             >
               Go
             </button>
           </div>
-          <span className="hidden sm:inline text-gray-300">|</span>
           <button
+            className="text-button"
             onClick={onSelectAll}
-            className="px-2 py-1 text-sm text-blue-500 hover:text-blue-700 active:text-blue-800"
+            disabled={disabled || users.length > 150}
+            title={
+              users.length > 150
+                ? 'A starter pack holds up to 150 profiles. Select a smaller group.'
+                : undefined
+            }
           >
             All
           </button>
-          <button
-            onClick={onDeselectAll}
-            className="px-2 py-1 text-sm text-blue-500 hover:text-blue-700 active:text-blue-800"
-          >
+          <button className="text-button" onClick={onDeselectAll} disabled={disabled}>
             None
           </button>
         </div>
+        <p className="toolbar-note">
+          Bulk actions use the full ranking, not the filter. Up to 150 profiles per pack.
+        </p>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        {users.map((user) => (
+      <div className="profile-list">
+        {visible.map((user) => (
           <UserRow
             key={user.did}
             user={user}
             isSelected={selectedDids.has(user.did)}
             onToggle={onToggle}
+            disabled={disabled || (!selectedDids.has(user.did) && selectedDids.size >= 150)}
           />
         ))}
+        {!visible.length && (
+          <p className="list-empty">
+            No profiles match this view. Clear the search or turn off Selected only.
+          </p>
+        )}
       </div>
     </div>
   )

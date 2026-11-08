@@ -19,7 +19,12 @@ describe('UserRow', () => {
     expect(screen.getByText('Test User')).toBeInTheDocument()
     expect(screen.getByText('@test.bsky.social')).toBeInTheDocument()
     expect(screen.getByText('42')).toBeInTheDocument()
-    expect(screen.getByText('interactions')).toBeInTheDocument()
+    expect(screen.getByText('score')).toBeInTheDocument()
+    expect(screen.getByText('42 interactions')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select @test.bsky.social' })).toBeInTheDocument()
+    expect(
+      screen.getByTitle('20 likes, 10 replies, 8 reposts, 4 mentions, 0 quotes')
+    ).toBeInTheDocument()
   })
 
   it('shows avatar image', () => {
@@ -31,10 +36,12 @@ describe('UserRow', () => {
 
   it('shows default avatar when none provided', () => {
     const userNoAvatar = { ...mockUser, avatar: undefined }
-    const { container } = render(<UserRow user={userNoAvatar} isSelected={false} onToggle={vi.fn()} />)
+    const { container } = render(
+      <UserRow user={userNoAvatar} isSelected={false} onToggle={vi.fn()} />
+    )
 
-    const img = container.querySelector('img')
-    expect(img?.getAttribute('src')).toContain('default-avatar')
+    expect(container.querySelector('img')).toBeNull()
+    expect(screen.getByText('T')).toBeInTheDocument()
   })
 
   it('falls back to handle when no display name', () => {
@@ -46,9 +53,7 @@ describe('UserRow', () => {
   })
 
   it('checkbox reflects isSelected prop', () => {
-    const { rerender } = render(
-      <UserRow user={mockUser} isSelected={false} onToggle={vi.fn()} />
-    )
+    const { rerender } = render(<UserRow user={mockUser} isSelected={false} onToggle={vi.fn()} />)
 
     expect(screen.getByRole('checkbox')).not.toBeChecked()
 

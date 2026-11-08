@@ -1,46 +1,45 @@
+// pattern: Functional Core
 const MAX_STARTER_PACK_SIZE = 150
-
 interface SelectionBarProps {
   selectedCount: number
   onPublish: () => void
   isAuthenticated: boolean
   isPublishing: boolean
+  publisherHandle?: string
 }
-
-export function SelectionBar({ selectedCount, onPublish, isAuthenticated, isPublishing }: SelectionBarProps) {
+export function SelectionBar({
+  selectedCount,
+  onPublish,
+  isAuthenticated,
+  isPublishing,
+  publisherHandle,
+}: SelectionBarProps) {
   const isOverLimit = selectedCount > MAX_STARTER_PACK_SIZE
-  const canPublish = selectedCount > 0 && selectedCount <= MAX_STARTER_PACK_SIZE && isAuthenticated && !isPublishing
-
+  const canPublish = selectedCount > 0 && !isOverLimit && isAuthenticated && !isPublishing
   return (
-    <div className="flex items-center justify-between p-3 bg-white rounded-lg">
-      <div className="flex items-center gap-2">
-        <span
-          className={`text-lg font-bold ${
-            isOverLimit ? 'text-red-500' : 'text-gray-700'
-          }`}
-        >
-          {selectedCount}
-        </span>
-        <span className="text-sm text-gray-500">
-          / {MAX_STARTER_PACK_SIZE} selected
-        </span>
-        {isOverLimit && (
-          <span className="text-xs text-red-500 ml-2">
-            ({selectedCount - MAX_STARTER_PACK_SIZE} over limit)
-          </span>
-        )}
+    <div className="selection-content">
+      <div className="selection-summary" role="status">
+        <div className={isOverLimit ? 'limit-error' : ''}>
+          <strong>{selectedCount}</strong>
+          <span> / {MAX_STARTER_PACK_SIZE} selected</span>
+        </div>
+        <p>
+          {isOverLimit
+            ? `(${selectedCount - MAX_STARTER_PACK_SIZE} over limit) — remove profiles to continue.`
+            : isAuthenticated
+              ? `Publishing as @${publisherHandle || 'your account'}`
+              : 'Sign in to publish. Your selection stays here.'}
+        </p>
       </div>
-      <button
-        onClick={onPublish}
-        disabled={!canPublish}
-        className={`px-4 py-2 rounded-md text-white font-medium ${
-          canPublish
-            ? 'bg-blue-500 hover:bg-blue-600'
-            : 'bg-gray-300 cursor-not-allowed'
-        }`}
-      >
-        {isPublishing ? 'Publishing...' : isAuthenticated ? 'Publish' : 'Login to Publish'}
-      </button>
+      {isAuthenticated ? (
+        <button className="button button-primary" disabled={!canPublish} onClick={onPublish}>
+          {isPublishing ? 'Publishing...' : 'Review & publish'}
+        </button>
+      ) : (
+        <a className="button button-primary" href="#publishing-account">
+          Sign in to publish
+        </a>
+      )}
     </div>
   )
 }

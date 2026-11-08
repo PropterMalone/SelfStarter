@@ -26,7 +26,7 @@ export function HandleInput({ onAnalyze, isLoading, handle }: HandleInputProps) 
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="analysis-form">
       <div>
         <label htmlFor="analysis-handle" className="block text-sm font-medium text-gray-700 mb-1">
           Public handle to analyze
@@ -59,12 +59,8 @@ export function HandleInput({ onAnalyze, isLoading, handle }: HandleInputProps) 
           ))}
         </select>
       </div>
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isLoading ? 'Analyzing...' : 'Analyze My Interactions'}
+      <button type="submit" disabled={isLoading} className="button button-primary analyze-button">
+        {isLoading ? 'Analyzing...' : 'Analyze interactions'}
       </button>
     </form>
   )

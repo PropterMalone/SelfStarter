@@ -36,7 +36,7 @@ export function AuthForm({
     }
   }
   return (
-    <div className="space-y-3 p-3 bg-gray-50 rounded-md">
+    <div className="auth-form">
       {failure && (
         <p role="alert" className="text-sm text-red-600">
           {failure}
@@ -82,7 +82,7 @@ export function AuthForm({
           <button
             type="submit"
             disabled={busy || !handle.trim()}
-            className="px-4 py-2 text-sm bg-blue-500 text-white rounded-md disabled:opacity-50"
+            className="button button-secondary auth-button"
           >
             {busy ? 'Redirecting…' : 'Sign in with Bluesky'}
           </button>

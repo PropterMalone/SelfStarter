@@ -1,39 +1,60 @@
+// pattern: Imperative Shell
 import type { InteractionUser } from '../../types'
 
 interface UserRowProps {
   user: InteractionUser
   isSelected: boolean
   onToggle: (did: string) => void
+  disabled?: boolean
 }
 
-export function UserRow({ user, isSelected, onToggle }: UserRowProps) {
+export function UserRow({ user, isSelected, onToggle, disabled }: UserRowProps) {
+  const counts = [
+    ['likes', user.interactions.likes],
+    ['replies', user.interactions.replies],
+    ['reposts', user.interactions.reposts],
+    ['mentions', user.interactions.mentions],
+    ['quotes', user.interactions.quotes || 0],
+  ] as const
+  const total = counts.reduce((sum, [, count]) => sum + count, 0)
+  const breakdown = counts.map(([label, count]) => `${count} ${label}`).join(', ')
   return (
-    <div
-      className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer active:bg-gray-100"
-      onClick={() => onToggle(user.did)}
+    <label
+      className={`profile-card ${isSelected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''}`}
     >
       <input
         type="checkbox"
+        aria-label={`Select @${user.handle}`}
         checked={isSelected}
+        disabled={disabled}
         onChange={() => onToggle(user.did)}
-        className="h-5 w-5 text-blue-500 rounded border-gray-300 focus:ring-blue-500"
-        onClick={(e) => e.stopPropagation()}
       />
-      <img
-        src={user.avatar || 'https://bsky.app/static/default-avatar.png'}
-        alt=""
-        className="w-10 h-10 rounded-full bg-gray-200"
-      />
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-gray-900 truncate">
-          {user.displayName || user.handle}
-        </div>
-        <div className="text-xs text-gray-500 truncate">@{user.handle}</div>
-      </div>
-      <div className="text-right">
-        <div className="text-sm font-semibold text-gray-700">{user.interactionCount}</div>
-        <div className="text-xs text-gray-400">interactions</div>
-      </div>
-    </div>
+      <span className="avatar" aria-hidden="true">
+        {user.avatar ? (
+          <img src={user.avatar} alt="" loading="lazy" />
+        ) : (
+          (user.displayName || user.handle).charAt(0).toUpperCase()
+        )}
+      </span>
+      <span className="profile-info">
+        <span className="profile-name">{user.displayName || user.handle}</span>
+        <span className="profile-handle">@{user.handle}</span>
+        <span className="raw-total">{total} interactions</span>
+        <span className="interaction-breakdown" title={breakdown} aria-label={breakdown}>
+          {counts.map(([label, count]) => (
+            <span key={label}>
+              {count} {label}
+            </span>
+          ))}
+        </span>
+      </span>
+      <span
+        className="profile-score"
+        title="Weighted score: interaction counts multiplied by your scoring weights"
+      >
+        <strong>{user.interactionCount}</strong>
+        <span>score</span>
+      </span>
+    </label>
   )
 }
