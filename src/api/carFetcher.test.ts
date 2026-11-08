@@ -166,7 +166,7 @@ describe('downloadAndParseRepo', () => {
 
     mockDecode.mockReturnValueOnce({
       $type: 'app.bsky.feed.post',
-      text: 'Hello @user.bsky.social and @other.bsky.social!',
+      text: 'Hello @user.bsky.social. and @other.bsky.social! Ignore @invalid..example and @fragment.',
       createdAt: new Date().toISOString(),
     })
 

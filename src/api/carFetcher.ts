@@ -1,6 +1,7 @@
 import { fromUint8Array as repoFromUint8Array } from '@atcute/repo'
 import { decode } from '@atcute/cbor'
 import type { TimePeriod } from '../types'
+import { normalizeMentionHandle } from './mentionHandle'
 
 const PLC_DIRECTORY = 'https://plc.directory'
 
@@ -262,8 +263,10 @@ export async function downloadAndParseRepo(
           const mentions = post.text.match(mentionRegex)
           if (mentions) {
             for (const mention of mentions) {
+              const handle = normalizeMentionHandle(mention.slice(1))
+              if (!handle) continue
               interactions.mentions.push({
-                handle: mention.slice(1),
+                handle,
                 createdAt: post.createdAt,
               })
             }

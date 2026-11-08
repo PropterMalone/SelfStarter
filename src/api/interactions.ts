@@ -1,6 +1,7 @@
 // pattern: Imperative Shell
 import type { BlueskyProfile, TimePeriod, InteractionUser } from '../types'
 import { publicGet } from './client'
+import { normalizeMentionHandle } from './mentionHandle'
 import { downloadAndParseRepo, getLatestCommit, filterByPeriod, type ParsedInteractions } from './carFetcher'
 
 const PROFILE_BATCH_SIZE = 20
@@ -116,7 +117,9 @@ export async function fetchInteractions(
 
   const mentionsByHandle = new Map<string, number>()
   for (const mention of parsed.mentions) {
-    mentionsByHandle.set(mention.handle, (mentionsByHandle.get(mention.handle) ?? 0) + 1)
+    const handle = normalizeMentionHandle(mention.handle)
+    if (!handle) continue
+    mentionsByHandle.set(handle, (mentionsByHandle.get(handle) ?? 0) + 1)
   }
 
   // Keep every aggregate: changing weights must be able to recover any candidate.
